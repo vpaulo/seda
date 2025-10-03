@@ -1,8 +1,57 @@
 package main
 
-import "fmt"
+import (
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+var (
+	help_flag = flag.Bool("help", false, "Show help message")
+)
 
 func main() {
+	flag.Usage = usage
+	flag.Parse()
 
-	fmt.Println("Seda parser")
+	if *help_flag {
+		usage()
+		os.Exit(0)
+	}
+
+	if flag.NArg() != 1 {
+		fmt.Fprintf(os.Stderr, "Error: Please provide exactly one source file\n\n")
+		usage()
+		os.Exit(1)
+	}
+
+	filename := flag.Arg(0)
+
+	// Check file extension
+	if ext := filepath.Ext(filename); ext != ".s" {
+		fmt.Fprintf(os.Stderr, "Warning: File '%s' doesn't have .s extension\n", filename)
+	}
+
+	input, err := os.ReadFile(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("File: %s (%d bytes)\n", filename, len(input))
+}
+
+func usage() {
+	fmt.Printf("Usage: seda [OPTIONS] <source-file>\n\n")
+	fmt.Println("A Programming Language Interpreter")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	flag.PrintDefaults()
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  seda program.s              # Execute program.s")
+	fmt.Println("  seda -test program.s        # Run tests in program.s")
+	fmt.Println("  seda -ast program.s         # Show AST of program.s")
+	fmt.Println("  seda -verbose program.s     # Execute with detailed output")
 }
