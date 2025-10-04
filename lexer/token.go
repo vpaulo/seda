@@ -253,7 +253,7 @@ var keywords = map[string]TokenType{
 	"var":      VAR,
 	"const":    CONST,
 	"fn":       FN,
-	"struct":   STRUCT,
+	"struct":   STRUCT, // TODO: don't think i need this keyword
 	"type":     TYPE,
 	"module":   MODULE,
 	"using":    USING,
