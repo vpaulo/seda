@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/vpaulo/seda/lexer"
 )
 
 var (
-	help_flag = flag.Bool("help", false, "Show help message")
+	verbose_mode = flag.Bool("verbose", false, "Show detailed execution information")
+	help_flag    = flag.Bool("help", false, "Show help message")
 )
 
 func main() {
@@ -39,7 +42,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("File: %s (%d bytes)\n", filename, len(input))
+	if *verbose_mode {
+		fmt.Printf("File: %s (%d bytes)\n", filename, len(input))
+	}
+
+	l := lexer.New(string(input))
+
+	fmt.Printf("Lexer: %v\n", l)
 }
 
 func usage() {
