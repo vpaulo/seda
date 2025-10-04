@@ -7,9 +7,12 @@ import (
 	"path/filepath"
 
 	"github.com/vpaulo/seda/lexer"
+	"github.com/vpaulo/seda/parser"
 )
 
 var (
+	test_mode    = flag.Bool("test", false, "Run tests instead of executing code")
+	ast_mode     = flag.Bool("ast", false, "Show AST and exit (don't execute)")
 	verbose_mode = flag.Bool("verbose", false, "Show detailed execution information")
 	help_flag    = flag.Bool("help", false, "Show help message")
 )
@@ -47,8 +50,27 @@ func main() {
 	}
 
 	l := lexer.New(string(input))
+	p := parser.New(l)
+	program := p.ParseProgram()
 
-	fmt.Printf("Lexer: %v\n", l)
+	if p.HasErrors() {
+		fmt.Fprintf(os.Stderr, "Parse errors in %s:\n", filename)
+		for i, err := range p.FormatErrors() {
+			fmt.Fprintf(os.Stderr, "  %d. %s\n", i+1, err)
+		}
+		os.Exit(1)
+	}
+
+	if *verbose_mode {
+		fmt.Printf("Parsed successfully (%d statements)\n", len(program.Statements))
+	}
+
+	// AST mode - just show AST and exit
+	if *ast_mode {
+		fmt.Println("Abstract Syntax Tree:")
+		fmt.Println(program.String())
+		return
+	}
 }
 
 func usage() {
