@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/vpaulo/seda/evaluator"
 	"github.com/vpaulo/seda/lexer"
+	"github.com/vpaulo/seda/object"
 	"github.com/vpaulo/seda/parser"
 )
 
@@ -70,6 +72,48 @@ func main() {
 		fmt.Println("Abstract Syntax Tree:")
 		fmt.Println(program.String())
 		return
+	}
+
+	// Test mode - run tests
+	if *test_mode {
+		if *verbose_mode {
+			fmt.Printf("Running tests in %s...\n", filename)
+		} else {
+			fmt.Println("Running tests...")
+		}
+		env := object.NewEnvironment()
+		test_result := evaluator.RunTests(program, env)
+		fmt.Println(test_result.String())
+
+		// Exit with error code if tests failed
+		if test_result.Failed > 0 {
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Normal execution mode
+	if *verbose_mode {
+		fmt.Printf("Executing %s...\n", filename)
+	}
+
+	env := object.NewEnvironment()
+	result := evaluator.Eval(program, env)
+
+	if result != nil {
+		switch result := result.(type) {
+		case *object.Error:
+			fmt.Fprintf(os.Stderr, "Runtime error: %s\n", result.Message)
+			os.Exit(1)
+		default:
+			if *verbose_mode {
+				fmt.Printf("Program completed. Final result: %s\n", result.Inspect())
+			}
+			// Only print result if it's not null and not a function definition
+			if result.Type() != object.NULL_OBJ && result.Type() != object.FUNCTION_OBJ {
+				fmt.Println(result.String())
+			}
+		}
 	}
 }
 
