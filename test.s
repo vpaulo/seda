@@ -14,3 +14,11 @@ var x = 5
 #| Multiline
    comment |#
 var y = 10 # Another single line
+
+
+fn add(x: number, y: number): number ::
+	x + y
+where ::
+	add(2, 3) is 5
+	add(0, 0) is 0
+end

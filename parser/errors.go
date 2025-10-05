@@ -206,7 +206,7 @@ func (parser *Parser) validate_identifier(ident *ast.Identifier, context string)
 
 func is_reserved_word(word string) bool {
 	reserved := []string{
-		"var", "const", "fn", "type", "module", "using", "as", "if", "else", "case",
+		"var", "const", "fn", "type", "module", "using", "as", "struct", "if", "else", "case",
 		"for", "in", "check", "where", "end", "is", "isA", "contains", "self", "return", "break", "true", "false",
 		"number", "string", "boolean", "and", "or", "not",
 	}
