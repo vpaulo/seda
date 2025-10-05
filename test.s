@@ -10,7 +10,7 @@ and should be ignored |#
 
 
 # Single line comment
-var x = 5
+var z = 5
 #| Multiline
    comment |#
 var y = 10 # Another single line
@@ -21,4 +21,12 @@ fn add(x: number, y: number): number ::
 where ::
 	add(2, 3) is 5
 	add(0, 0) is 0
+end
+
+println(add(4, 44))
+
+check ::
+
+  add(4,44) is 48
+
 end
