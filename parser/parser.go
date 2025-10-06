@@ -580,13 +580,23 @@ func (parser *Parser) parse_check_statement() *ast.CheckStatement {
 		return nil
 	}
 
+    stmt.Statements = []ast.Statement{}
 	stmt.Assertions = []*ast.Assertion{}
 
 	parser.next_token()
 	for parser.current_token.Type != lexer.END && parser.current_token.Type != lexer.EOF {
-		assertion := parser.parse_assertion()
-		if assertion != nil {
-			stmt.Assertions = append(stmt.Assertions, assertion)
+		// If not an assertion, try to parse as a statement (var/const declarations)
+		if parser.current_token.Type == lexer.VAR || parser.current_token.Type == lexer.CONST {
+			statement := parser.parse_statement()
+			if statement != nil {
+				stmt.Statements = append(stmt.Statements, statement)
+			}
+		} else {
+			// Try to parse as an assertion
+			assertion := parser.parse_assertion()
+			if assertion != nil {
+				stmt.Assertions = append(stmt.Assertions, assertion)
+			}
 		}
 		parser.next_token()
 	}
@@ -750,7 +760,7 @@ func (parser *Parser) parse_assertion() *ast.Assertion {
 
 	// Check for assertion operators
 	if !parser.is_assertion_operator(parser.peek_token.Type) {
-		parser.peek_error(lexer.IS)
+		// Not an assertion - just return nil without error
 		return nil
 	}
 

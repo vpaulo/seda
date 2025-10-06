@@ -118,6 +118,7 @@ type MapPair struct {
 // Map represents a map/hash/dictionary
 type Map struct {
 	Pairs map[string]MapPair
+	Properties map[string]Object // Custom properties/methods
 }
 
 func (m *Map) Type() ObjectType { return MAP_OBJ }
