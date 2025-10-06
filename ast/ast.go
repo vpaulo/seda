@@ -274,6 +274,7 @@ func (fs *ForStatement) String() string {
 
 // Check Block
 type CheckStatement struct {
+	Statements []Statement  // statements (e.g. var declarations) before assertions
 	Assertions []*Assertion
 	Label      string // optional label for test group
 }
@@ -288,6 +289,10 @@ func (cs *CheckStatement) String() string {
 		out.WriteString("\"")
 	}
 	out.WriteString(" ::")
+	for _, stmt := range cs.Statements {
+		out.WriteString("\n  ")
+		out.WriteString(stmt.String())
+	}
 	for _, assertion := range cs.Assertions {
 		out.WriteString("\n  ")
 		out.WriteString(assertion.String())

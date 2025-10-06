@@ -289,9 +289,9 @@ func SetMapRegistry(obj *object.Map) {
 
 func call_number_method(num *object.Number, method_name string, args []object.Object) object.Object {
 	switch method_name {
-	case "toString":
+	case "to_string":
 		if len(args) != 0 {
-			return object.NewError("wrong number of arguments for Number.toString. got=%d, want=0", len(args))
+			return object.NewError("wrong number of arguments for Number.to_string. got=%d, want=0", len(args))
 		}
 		return &object.String{Value: fmt.Sprintf("%.10g", num.Value)}
 	}
@@ -312,18 +312,9 @@ func call_number_method(num *object.Number, method_name string, args []object.Ob
 // Map Methods
 
 func call_map_method(map_obj *object.Map, method_name string, args []object.Object) object.Object {
-	// Check for instance-specific custom properties (stored in the map's Pairs)
-	if pair, ok := map_obj.Pairs[method_name]; ok {
-		// If it's a function, call it with the map instance as first argument (self)
-		if fn, ok := pair.Value.(*object.Function); ok {
-			method_args := append([]object.Object{map_obj}, args...)
-			return apply_function_from_method(fn, method_args)
-		}
-		// If it's not a function, just return the property value (for zero-arg access)
-		if len(args) == 0 {
-			return pair.Value
-		}
-		return object.NewError("property '%s' is not a function", method_name)
+	// Check for instance-specific custom properties
+	if result, found := check_custom_property(map_obj.Properties, method_name, map_obj, args); found {
+		return result
 	}
 
 	// Check for user-defined methods in the global map registry
@@ -338,9 +329,9 @@ func call_map_method(map_obj *object.Map, method_name string, args []object.Obje
 
 func call_boolean_method(bool *object.Boolean, method_name string, args []object.Object) object.Object {
 	switch method_name {
-	case "toString":
+	case "to_string":
 		if len(args) != 0 {
-			return object.NewError("wrong number of arguments for Boolean.toString. got=%d, want=0", len(args))
+			return object.NewError("wrong number of arguments for Boolean.to_string. got=%d, want=0", len(args))
 		}
 		return &object.String{Value: fmt.Sprintf("%t", bool.Value)}
 	}

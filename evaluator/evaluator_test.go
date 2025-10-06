@@ -926,7 +926,7 @@ func TestObjectMethodsWithVariables(t *testing.T) {
 	input := `
 	var numbers = [1, 2, 3, 4, 5]
 	var lastNum = numbers.last()
-	var strNum = lastNum.toString()
+	var strNum = lastNum.to_string()
 	strNum.length()
 	`
 
@@ -1738,8 +1738,8 @@ func TestPropertyMethodAccess(t *testing.T) {
 		{`[1, 2, 3].length`, 3},
 		{`[1, 2, 3].first`, 1},
 		{`[1, 2, 3].last`, 3},
-		{`42.toString`, "42"},
-		{`true.toString`, "true"},
+		{`42.to_string`, "42"},
+		{`true.to_string`, "true"},
 	}
 
 	for _, tt := range tests {

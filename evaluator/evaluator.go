@@ -274,9 +274,19 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 			// Check if it's a Map object
 			if map_obj, ok := obj.(*object.Map); ok {
-				map_obj.Pairs[property_name] = object.MapPair{
-					Key:   &object.String{Value: property_name},
-					Value: val,
+				// If the key already exists in Pairs, update it there (data update)
+				// OR if the value is not a function, treat it as data
+				if _, exists := map_obj.Pairs[property_name]; exists || val.Type() != object.FUNCTION_OBJ {
+					map_obj.Pairs[property_name] = object.MapPair{
+						Key:   &object.String{Value: property_name},
+						Value: val,
+					}
+				} else {
+					// It's a new function being added - treat as a custom method
+					if map_obj.Properties == nil {
+						map_obj.Properties = make(map[string]object.Object)
+					}
+					map_obj.Properties[property_name] = val
 				}
 				return val
 			}
@@ -1148,6 +1158,16 @@ func eval_dot_expression(node *ast.DotExpression, env *object.Environment) objec
 		}
 		return object.NewError("undefined property '%s' in module '%s'", node.Property.Value, module.Name)
 	}
+	
+	// Handle map property access - check data keys first, then custom methods
+	if map_obj, ok := left.(*object.Map); ok {
+		property_name := node.Property.Value
+		// First check if it's a data key in Pairs
+		if pair, exists := map_obj.Pairs[property_name]; exists {
+			return pair.Value
+		}
+		// If not a data key, fall through to method call below
+	}
 
 	// Handle property-style method access (zero-argument methods without parentheses)
 	// Try to call the method with no arguments
@@ -1205,9 +1225,23 @@ func eval_check_statement(node *ast.CheckStatement, env *object.Environment) obj
 		Failures: []string{},
 		Label:    node.Label,
 	}
+	
+	// Create a new environment for the check block so variables are scoped
+	check_env := object.NewEnclosedEnvironment(env)
 
+	// Evaluate statements (e.g., var/const declarations) first
+	for _, stmt := range node.Statements {
+		eval_result := Eval(stmt, check_env)
+		if is_error(eval_result) {
+			result.Failed++
+			result.Failures = append(result.Failures, eval_result.(*object.Error).Message)
+			return result
+		}
+	}
+
+	// Then evaluate assertions using the check block environment
 	for _, assertion := range node.Assertions {
-		passed, message := eval_assertion(assertion, env)
+		passed, message := eval_assertion(assertion, check_env)
 		if passed {
 			result.Passed++
 		} else {
