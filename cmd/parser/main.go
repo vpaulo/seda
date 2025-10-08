@@ -57,8 +57,8 @@ func main() {
 
 	if p.HasErrors() {
 		fmt.Fprintf(os.Stderr, "Parse errors in %s:\n", filename)
-		for i, err := range p.FormatErrors() {
-			fmt.Fprintf(os.Stderr, "  %d. %s\n", i+1, err)
+		for _, err := range p.FormatErrors() {
+			fmt.Fprintf(os.Stderr, "  %s\n", err)
 		}
 		os.Exit(1)
 	}
