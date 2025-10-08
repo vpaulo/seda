@@ -105,4 +105,138 @@ check "Number-Map based Counter type" ::
   count.decrement.value is 11
 end
 
+# ==========================================
+# 3. ARRAY-BASED TYPES
+# ==========================================
+
+fn createStack() ::
+  const stack = []
+
+  stack.push = fn(self, value) ::
+    return self.push(value)
+  end
+
+  stack.pop = fn(self) ::
+    const value = self.last
+    # Note: In a real implementation, we'd remove the last element
+    return value
+  end
+
+  stack.peek = fn(self) ::
+    return self.last
+  end
+
+  stack.isEmpty = fn(self) ::
+    return self.length == 0
+  end
+
+  stack.size = fn(self) ::
+    return self.length
+  end
+
+  return stack
+end
+
+var myStack = createStack()
+myStack = myStack.push(10)
+myStack = myStack.push(20)
+myStack = myStack.push(30)
+
+check "String based Person type" ::
+  myStack.peek is 30
+  myStack.size is 3
+  myStack.isEmpty is false
+end
+
+# ==========================================
+# 4. MAP-BASED TYPES (Classic OOP)
+# ==========================================
+
+fn createRectangle(width, height) ::
+  const rect = {"width": width, "height": height}
+
+  rect.area = fn(self) ::
+    return self["width"] * self["height"]
+  end
+
+  rect.perimeter = fn(self) ::
+    return 2 * (self["width"] + self["height"])
+  end
+
+  rect.isSquare = fn(self) ::
+    return self["width"] == self["height"]
+  end
+
+  rect.scale = fn(self, factor) ::
+    self["width"] = self["width"] * factor
+    self["height"] = self["height"] * factor
+    return self
+  end
+
+  rect.describe = fn(self) ::
+    return "Rectangle: " + self["width"].to_string + "x" + self["height"].to_string
+  end
+
+  return rect
+end
+
+const rect = createRectangle(10, 5)
+println(rect.describe)
+println("Area: ", rect.area)
+println("Perimeter: ", rect.perimeter)
+println("Is square: ", rect.isSquare)
+
+check "String based Person type" ::
+  rect.describe is "Rectangle: 10x5"
+  rect.area is 50
+  rect.perimeter is 30
+  rect.isSquare is false
+end
+
+# ==========================================
+# 5. BOOLEAN-BASED TYPES
+# ==========================================
+
+print("\n--- Boolean-Based Flag Type ---")
+
+fn createFlag(initialState) ::
+  const flag = initialState
+
+  flag.toggle = fn(self) ::
+    if self ::
+      return false
+    else ::
+      return true
+    end
+  end
+
+  flag.describe = fn(self) ::
+    if self ::
+      return "Flag is ON"
+    else ::
+      return "Flag is OFF"
+    end
+  end
+
+  flag.andWith = fn(self, other) ::
+    return self and other
+  end
+
+  flag.orWith = fn(self, other) ::
+    return self or other
+  end
+
+  return flag
+end
+
+const myFlag = createFlag(true)
+const toggled = myFlag.toggle
+const toggledFlag = createFlag(toggled)
+
+check "String based Person type" ::
+  myFlag.describe is "Flag is ON"
+  toggled is false
+  toggledFlag is false
+end
+
 println("✓ All custom type system tests passed!")
