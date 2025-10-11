@@ -1017,7 +1017,11 @@ func is_equal(left, right object.Object) bool {
 
 	switch left.Type() {
 	case object.NUMBER_OBJ:
-		return left.(*object.Number).Value == right.(*object.Number).Value
+		// Use epsilon-based comparison for floating-point numbers
+		left_val := left.(*object.Number).Value
+		right_val := right.(*object.Number).Value
+		epsilon := 1e-8 // Tolerance for floating-point comparison (10 nanounits)
+		return math.Abs(left_val-right_val) < epsilon
 	case object.STRING_OBJ:
 		return left.(*object.String).Value == right.(*object.String).Value
 	case object.BOOLEAN_OBJ:
@@ -1294,7 +1298,7 @@ func eval_using_statement(node *ast.UsingStatement, env *object.Environment) obj
 	module_path := node.Path.Value
 
 	// Resolve the path (handle relative paths)
-	resolved_path, err := resolve_module_path(module_path)
+	resolved_path, err := resolve_module_path(module_path, env.SourceDir)
 	if err != nil {
 		return object.NewError("failed to resolve module path '%s': %s", module_path, err.Error())
 	}
@@ -1548,21 +1552,21 @@ func collect_check_blocks(node ast.Node) []*ast.CheckStatement {
 }
 
 // resolve_module_path resolves module paths for import with URI support
-func resolve_module_path(path string) (string, error) {
+func resolve_module_path(path string, sourceDir string) (string, error) {
 	switch {
 	case strings.HasPrefix(path, "std/"):
 		return resolve_std_module(path)
 	case strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../"):
-		return resolve_relative_module(path)
+		return resolve_relative_module(path, sourceDir)
 	case filepath.IsAbs(path):
 		return path, nil
 	case strings.Contains(path, "github.com/") || strings.Contains(path, "gitlab.com/") || strings.Contains(path, "bitbucket.org/"):
 		return resolve_third_party_module(path)
 	case strings.Contains(path, "/"):
 		// Local subdirectory path (e.g., "utils/string.s")
-		return resolve_local_module(path)
+		return resolve_local_module(path, sourceDir)
 	default:
-		return resolve_local_module(path)
+		return resolve_local_module(path, sourceDir)
 	}
 }
 
@@ -1610,24 +1614,40 @@ func resolve_third_party_module(path string) (string, error) {
 }
 
 // resolve_relative_module resolves relative paths
-func resolve_relative_module(path string) (string, error) {
-	abs_path, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
+func resolve_relative_module(path string, sourceDir string) (string, error) {
+	// Resolve relative to the source file's directory
+	var abs_path string
+	if sourceDir != "" {
+		abs_path = filepath.Join(sourceDir, path)
+	} else {
+		// Fallback to current working directory
+		var err error
+		abs_path, err = filepath.Abs(path)
+		if err != nil {
+			return "", err
+		}
 	}
 	return abs_path, nil
 }
 
-// resolve_local_module resolves local modules in current directory
-func resolve_local_module(path string) (string, error) {
+// resolve_local_module resolves local modules relative to source file directory
+func resolve_local_module(path string, sourceDir string) (string, error) {
 	// Add .s extension if not present
 	if !strings.HasSuffix(path, ".s") {
 		path = path + ".s"
 	}
 
-	abs_path, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
+	// Resolve relative to the source file's directory
+	var abs_path string
+	if sourceDir != "" {
+		abs_path = filepath.Join(sourceDir, path)
+	} else {
+		// Fallback to current working directory
+		var err error
+		abs_path, err = filepath.Abs(path)
+		if err != nil {
+			return "", err
+		}
 	}
 	return abs_path, nil
 }

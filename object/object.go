@@ -202,7 +202,8 @@ type Environment struct {
 	store            map[string]Object
 	constants        map[string]bool // Track which identifiers are constants
 	outer            *Environment
-	InWhereBlockTest bool // Flag to prevent infinite recursion in where block tests
+	InWhereBlockTest bool   // Flag to prevent infinite recursion in where block tests
+	SourceDir        string // Directory of the source file being evaluated (for module resolution)
 }
 
 // NewEnvironment creates a new environment
@@ -216,6 +217,10 @@ func NewEnvironment() *Environment {
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment()
 	env.outer = outer
+	// Inherit source directory from parent environment
+	if outer != nil {
+		env.SourceDir = outer.SourceDir
+	}
 	return env
 }
 
