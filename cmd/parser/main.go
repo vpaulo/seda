@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/vpaulo/seda/evaluator"
 	"github.com/vpaulo/seda/lexer"
@@ -26,6 +28,12 @@ func main() {
 	if *help_flag {
 		usage()
 		os.Exit(0)
+	}
+
+	// If no file is provided, start REPL
+	if flag.NArg() == 0 {
+		start_REPL()
+		return
 	}
 
 	if flag.NArg() != 1 {
@@ -82,6 +90,9 @@ func main() {
 			fmt.Println("Running tests...")
 		}
 		env := object.NewEnvironment()
+		// Set the source directory for module resolution
+		abs_path, _ := filepath.Abs(filename)
+		env.SourceDir = filepath.Dir(abs_path)
 		test_result := evaluator.RunTests(program, env)
 		fmt.Println(test_result.String())
 
@@ -98,6 +109,9 @@ func main() {
 	}
 
 	env := object.NewEnvironment()
+	// Set the source directory for module resolution
+	abs_path, _ := filepath.Abs(filename)
+	env.SourceDir = filepath.Dir(abs_path)
 	result := evaluator.Eval(program, env)
 
 	if result != nil {
@@ -121,12 +135,96 @@ func usage() {
 	fmt.Printf("Usage: seda [OPTIONS] <source-file>\n\n")
 	fmt.Println("A Programming Language Interpreter")
 	fmt.Println()
+	fmt.Println("If no source file is provided, starts an interactive REPL.")
+	fmt.Println()
 	fmt.Println("OPTIONS:")
 	flag.PrintDefaults()
 	fmt.Println()
 	fmt.Println("EXAMPLES:")
+	fmt.Println("  seda                        # Start interactive REPL")
 	fmt.Println("  seda program.s              # Execute program.s")
 	fmt.Println("  seda -test program.s        # Run tests in program.s")
 	fmt.Println("  seda -ast program.s         # Show AST of program.s")
 	fmt.Println("  seda -verbose program.s     # Execute with detailed output")
+}
+
+const PROMPT = ">> "
+
+func start_REPL() {
+	fmt.Println("Welcome to the Seda Language REPL!")
+	fmt.Println("Type 'exit' or 'quit' to exit, 'help' for help")
+	fmt.Println()
+
+	env := object.NewEnvironment()
+	scanner := bufio.NewScanner(os.Stdin)
+
+	for {
+		fmt.Print(PROMPT)
+
+		if !scanner.Scan() {
+			break
+		}
+
+		line := strings.TrimSpace(scanner.Text())
+
+		// Handle special commands
+		switch line {
+		case "exit", "quit":
+			fmt.Println("Goodbye!")
+			return
+		case "help":
+			printReplHelp()
+			continue
+		case "clear":
+			clearEnvironment(env)
+			fmt.Println("Environment cleared")
+			continue
+		case "":
+			continue
+		}
+
+		// Parse and evaluate input
+		l := lexer.New(line)
+		p := parser.New(l)
+		program := p.ParseProgram()
+
+		if p.HasErrors() {
+			fmt.Println("Parser errors:")
+			for _, err := range p.FormatErrors() {
+				fmt.Printf("  %s\n", err)
+			}
+			continue
+		}
+
+		evaluated := evaluator.Eval(program, env)
+		if evaluated != nil {
+			fmt.Printf("%s\n", evaluated.Inspect())
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+	}
+}
+
+func printReplHelp() {
+	fmt.Println("Available commands:")
+	fmt.Println("  help    - Show this help message")
+	fmt.Println("  clear   - Clear all variables and functions")
+	fmt.Println("  exit    - Exit the REPL")
+	fmt.Println("  quit    - Exit the REPL")
+	fmt.Println()
+	fmt.Println("Language features:")
+	fmt.Println("  Variables: var x = 5")
+	fmt.Println("  Functions: fn add(a, b) :: return a + b end")
+	fmt.Println("  Arrays: [1, 2, 3]")
+	fmt.Println("  Maps: {\"key\": \"value\"}")
+	fmt.Println("  Control flow: if, else, case, for")
+	fmt.Println("  Testing: check \"test\" :: x is 5 end")
+	fmt.Println()
+}
+
+func clearEnvironment(env *object.Environment) {
+	// Create a new clean environment
+	*env = *object.NewEnvironment()
 }

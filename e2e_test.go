@@ -1,31 +1,32 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// func TestE2EREPL(t *testing.T) {
-// 	// Test basic REPL functionality
-// 	cmd := exec.Command("go", "run", "cmd/repl/main.go")
-// 	cmd.Stdin = strings.NewReader("var x = 5\nx\nexit\n")
+func TestE2EREPL(t *testing.T) {
+	// Test basic REPL functionality
+	cmd := exec.Command("go", "run", "cmd/parser/main.go")
+	cmd.Stdin = strings.NewReader("var x = 5\nx\nexit\n")
 
-// 	output, err := cmd.CombinedOutput()
-// 	if err != nil {
-// 		t.Fatalf("REPL command failed: %v\nOutput: %s", err, output)
-// 	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("REPL command failed: %v\nOutput: %s", err, output)
+	}
 
-// 	output_str := string(output)
-// 	if !strings.Contains(output_str, "Welcome to the Programming Language REPL") {
-// 		t.Errorf("Expected REPL welcome message, got %q", output_str)
-// 	}
+	output_str := string(output)
+	if !strings.Contains(output_str, "Welcome to the Seda Language REPL!") {
+		t.Errorf("Expected REPL welcome message, got %q", output_str)
+	}
 
-// 	if !strings.Contains(output_str, "5") {
-// 		t.Errorf("Expected variable value output, got %q", output_str)
-// 	}
-// }
+	if !strings.Contains(output_str, "5") {
+		t.Errorf("Expected variable value output, got %q", output_str)
+	}
+}
 
 func TestE2EExamplePrograms(t *testing.T) {
 	// Test all example programs
@@ -82,5 +83,30 @@ func TestE2EHelpAndUsage(t *testing.T) {
 
 	if !strings.Contains(output_str, "OPTIONS:") {
 		t.Errorf("Expected options information, got %q", output_str)
+	}
+}
+
+func TestE2EFileExtensionWarning(t *testing.T) {
+	// Create a file with wrong extension
+	testFile := "test_wrong_ext.txt"
+	content := `var x = 5
+print(x)`
+
+	err := os.WriteFile(testFile, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	defer os.Remove(testFile)
+
+	// Run the interpreter
+	cmd := exec.Command("go", "run", "cmd/parser/main.go", testFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Command failed: %v\nOutput: %s", err, output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "Warning") {
+		t.Errorf("Expected file extension warning, got %q", outputStr)
 	}
 }
