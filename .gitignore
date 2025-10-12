@@ -30,3 +30,8 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# AI
+CLAUDE.md
+CHANGE_LOG.md
+tasks

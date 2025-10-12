@@ -1224,12 +1224,13 @@ func eval_method_call(dot_expr *ast.DotExpression, arguments []ast.Expression, e
 
 func eval_check_statement(node *ast.CheckStatement, env *object.Environment) object.Object {
 	result := &object.TestResult{
-		Passed:   0,
-		Failed:   0,
-		Failures: []string{},
-		Label:    node.Label,
+		Passed:     0,
+		Failed:     0,
+		Failures:   []string{},
+		Label:      node.Label,
+		Assertions: []object.AssertionResult{},
 	}
-	
+
 	// Create a new environment for the check block so variables are scoped
 	check_env := object.NewEnclosedEnvironment(env)
 
@@ -1246,6 +1247,15 @@ func eval_check_statement(node *ast.CheckStatement, env *object.Environment) obj
 	// Then evaluate assertions using the check block environment
 	for _, assertion := range node.Assertions {
 		passed, message := eval_assertion(assertion, check_env)
+
+		// Create assertion result with source code
+		assertionResult := object.AssertionResult{
+			Passed:  passed,
+			Message: message,
+			Source:  assertion.String(), // Use AST string representation as source
+		}
+		result.Assertions = append(result.Assertions, assertionResult)
+
 		if passed {
 			result.Passed++
 		} else {
@@ -1384,14 +1394,37 @@ func eval_where_block(where_block *ast.WhereBlock, env *object.Environment, retu
 }
 
 func eval_assertion(assertion *ast.Assertion, env *object.Environment) (bool, string) {
+	// Special handling for 'raises' assertion - we want to capture errors, not propagate them
+	if assertion.Operator == "raises" {
+		// Evaluate left side - if it's an error, that's what we're testing for
+		left := Eval(assertion.Left, env)
+		// For raises, we DON'T treat errors as failures - they're expected
+
+		// Evaluate right side (optional error message matcher)
+		var right object.Object
+		if assertion.Right != nil {
+			right = Eval(assertion.Right, env)
+			if is_error(right) {
+				return false, fmt.Sprintf("Error evaluating right side: %s", right.String())
+			}
+		}
+
+		return eval_raises_assertion(left, right)
+	}
+
+	// For all other assertions, evaluate left side normally
 	left := Eval(assertion.Left, env)
 	if is_error(left) {
 		return false, fmt.Sprintf("Error evaluating left side: %s", left.String())
 	}
 
-	right := Eval(assertion.Right, env)
-	if is_error(right) {
-		return false, fmt.Sprintf("Error evaluating right side: %s", right.String())
+	// For unary assertions, right will be nil
+	var right object.Object
+	if assertion.Right != nil {
+		right = Eval(assertion.Right, env)
+		if is_error(right) {
+			return false, fmt.Sprintf("Error evaluating right side: %s", right.String())
+		}
 	}
 
 	switch assertion.Operator {
@@ -1399,8 +1432,24 @@ func eval_assertion(assertion *ast.Assertion, env *object.Environment) (bool, st
 		return eval_is_assertion(left, right)
 	case "isA":
 		return eval_isA_assertion(left, right)
+	case "isNot":
+		return eval_isNot_assertion(left, right)
 	case "contains":
 		return eval_contains_assertion(left, right)
+	case "isGreater":
+		return eval_isGreater_assertion(left, right)
+	case "isLess":
+		return eval_isLess_assertion(left, right)
+	case "isTrue":
+		return eval_isTrue_assertion(left)
+	case "isFalse":
+		return eval_isFalse_assertion(left)
+	case "isEmpty":
+		return eval_isEmpty_assertion(left)
+	case "startsWith":
+		return eval_startsWith_assertion(left, right)
+	case "endsWith":
+		return eval_endsWith_assertion(left, right)
 	default:
 		return false, fmt.Sprintf("Unknown assertion operator: %s", assertion.Operator)
 	}
@@ -1486,6 +1535,121 @@ func get_user_friendly_type_name(internal_type string) string {
 	}
 }
 
+// New assertion evaluation functions
+
+func eval_isNot_assertion(left, right object.Object) (bool, string) {
+	equal := is_equal(left, right)
+	if equal {
+		return false, fmt.Sprintf("Expected %s to not equal %s", left.Inspect(), right.Inspect())
+	}
+	return true, ""
+}
+
+func eval_isGreater_assertion(left, right object.Object) (bool, string) {
+	if left.Type() != object.NUMBER_OBJ || right.Type() != object.NUMBER_OBJ {
+		return false, "isGreater requires both operands to be numbers"
+	}
+	left_val := left.(*object.Number).Value
+	right_val := right.(*object.Number).Value
+	if left_val > right_val {
+		return true, ""
+	}
+	return false, fmt.Sprintf("Expected %s to be greater than %s", left.Inspect(), right.Inspect())
+}
+
+func eval_isLess_assertion(left, right object.Object) (bool, string) {
+	if left.Type() != object.NUMBER_OBJ || right.Type() != object.NUMBER_OBJ {
+		return false, "isLess requires both operands to be numbers"
+	}
+	left_val := left.(*object.Number).Value
+	right_val := right.(*object.Number).Value
+	if left_val < right_val {
+		return true, ""
+	}
+	return false, fmt.Sprintf("Expected %s to be less than %s", left.Inspect(), right.Inspect())
+}
+
+func eval_isTrue_assertion(left object.Object) (bool, string) {
+	if left.Type() != object.BOOLEAN_OBJ {
+		return false, fmt.Sprintf("isTrue requires a boolean, got %s", left.Type())
+	}
+	if left.(*object.Boolean).Value {
+		return true, ""
+	}
+	return false, "Expected true, got false"
+}
+
+func eval_isFalse_assertion(left object.Object) (bool, string) {
+	if left.Type() != object.BOOLEAN_OBJ {
+		return false, fmt.Sprintf("isFalse requires a boolean, got %s", left.Type())
+	}
+	if !left.(*object.Boolean).Value {
+		return true, ""
+	}
+	return false, "Expected false, got true"
+}
+
+func eval_isEmpty_assertion(left object.Object) (bool, string) {
+	switch obj := left.(type) {
+	case *object.Array:
+		if len(obj.Elements) == 0 {
+			return true, ""
+		}
+		return false, fmt.Sprintf("Expected array to be empty, but has %d elements", len(obj.Elements))
+	case *object.String:
+		if len(obj.Value) == 0 {
+			return true, ""
+		}
+		return false, fmt.Sprintf("Expected string to be empty, but has length %d", len(obj.Value))
+	default:
+		return false, fmt.Sprintf("isEmpty requires an array or string, got %s", left.Type())
+	}
+}
+
+func eval_startsWith_assertion(left, right object.Object) (bool, string) {
+	if left.Type() != object.STRING_OBJ || right.Type() != object.STRING_OBJ {
+		return false, "startsWith requires both operands to be strings"
+	}
+	left_str := left.(*object.String).Value
+	right_str := right.(*object.String).Value
+	if strings.HasPrefix(left_str, right_str) {
+		return true, ""
+	}
+	return false, fmt.Sprintf("Expected %s to start with %s", left.Inspect(), right.Inspect())
+}
+
+func eval_endsWith_assertion(left, right object.Object) (bool, string) {
+	if left.Type() != object.STRING_OBJ || right.Type() != object.STRING_OBJ {
+		return false, "endsWith requires both operands to be strings"
+	}
+	left_str := left.(*object.String).Value
+	right_str := right.(*object.String).Value
+	if strings.HasSuffix(left_str, right_str) {
+		return true, ""
+	}
+	return false, fmt.Sprintf("Expected %s to end with %s", left.Inspect(), right.Inspect())
+}
+
+func eval_raises_assertion(left, right object.Object) (bool, string) {
+	// Check if left is an error
+	if left.Type() != object.ERROR_OBJ {
+		return false, fmt.Sprintf("Expected an error to be raised, but got %s", left.Type())
+	}
+
+	// If right is provided, check if error message matches
+	if right != nil && right.Type() == object.STRING_OBJ {
+		error_msg := left.(*object.Error).Message
+		expected_msg := right.(*object.String).Value
+		if strings.Contains(error_msg, expected_msg) {
+			return true, ""
+		}
+		return false, fmt.Sprintf("Error message %q does not contain %q", error_msg, expected_msg)
+	}
+
+	// If no specific message required, just check that an error was raised
+	return true, ""
+}
+
 // Test Runner functionality
 
 func RunTests(program *ast.Program, env *object.Environment) *object.TestResult {
@@ -1494,10 +1658,11 @@ func RunTests(program *ast.Program, env *object.Environment) *object.TestResult 
 
 	// Then collect and run all check blocks
 	total_result := &object.TestResult{
-		Passed:   0,
-		Failed:   0,
-		Failures: []string{},
-		Label:    "Test Suite",
+		Passed:     0,
+		Failed:     0,
+		Failures:   []string{},
+		Label:      "Test Suite",
+		Assertions: []object.AssertionResult{},
 	}
 
 	check_blocks := collect_check_blocks(program)
@@ -1507,6 +1672,10 @@ func RunTests(program *ast.Program, env *object.Environment) *object.TestResult 
 		if test_result, ok := result.(*object.TestResult); ok {
 			total_result.Passed += test_result.Passed
 			total_result.Failed += test_result.Failed
+
+			// Aggregate assertions from each test
+			total_result.Assertions = append(total_result.Assertions, test_result.Assertions...)
+
 			for _, failure := range test_result.Failures {
 				label := test_result.Label
 				if label == "" {

@@ -16,7 +16,7 @@ fn createQueue() ::
     return self.first
   end
 
-  queue.isEmpty = fn(self) ::
+  queue.is_empty = fn(self) ::
     return self.length == 0
   end
 

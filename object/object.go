@@ -351,31 +351,79 @@ func (t *TypeAlias) Type() ObjectType { return TYPE_ALIAS_OBJ }
 func (t *TypeAlias) Inspect() string  { return fmt.Sprintf("type %s", t.Name) }
 func (t *TypeAlias) String() string   { return t.Inspect() }
 
+// AssertionResult represents the result of a single assertion
+type AssertionResult struct {
+	Passed   bool
+	Message  string
+	Line     int
+	Column   int
+	Source   string // The source code of the assertion
+}
+
 // TestResult represents the result of test assertions
 type TestResult struct {
-	Passed   int
-	Failed   int
-	Failures []string
-	Label    string
+	Passed     int
+	Failed     int
+	Failures   []string
+	Label      string
+	Assertions []AssertionResult // Individual assertion results
+	FilePath   string            // File path for location info
 }
 
 func (tr *TestResult) Type() ObjectType { return TEST_RESULT_OBJ }
 func (tr *TestResult) Inspect() string {
 	total := tr.Passed + tr.Failed
 	status := "PASSED"
+	statusSymbol := "✓"
 	if tr.Failed > 0 {
 		status = "FAILED"
+		statusSymbol = "✗"
 	}
 
-	result := fmt.Sprintf("Test %s: %d/%d assertions passed", status, tr.Passed, total)
+	// Header with test name and summary
+	result := fmt.Sprintf("%s Test %s: %d/%d assertions passed", statusSymbol, status, tr.Passed, total)
 	if tr.Label != "" {
-		result = fmt.Sprintf("Test '%s' %s: %d/%d assertions passed", tr.Label, status, tr.Passed, total)
+		result = fmt.Sprintf("%s Test '%s' %s: %d/%d assertions passed", statusSymbol, tr.Label, status, tr.Passed, total)
 	}
 
-	if tr.Failed > 0 {
+	// Show individual assertion results if available
+	if len(tr.Assertions) > 0 {
+		result += "\n\nAssertion Details:"
+		for _, assertion := range tr.Assertions {
+			symbol := "✓"
+			statusText := "PASS"
+			if !assertion.Passed {
+				symbol = "✗"
+				statusText = "FAIL"
+			}
+
+			result += fmt.Sprintf("\n  %s [%s]", symbol, statusText)
+
+			// Add location info if available
+			if assertion.Line > 0 {
+				result += fmt.Sprintf(" line %d", assertion.Line)
+				if assertion.Column > 0 {
+					result += fmt.Sprintf(":%d", assertion.Column)
+				}
+			}
+
+			// Add source code if available
+			if assertion.Source != "" {
+				result += fmt.Sprintf(": %s", assertion.Source)
+			}
+
+			// Add failure message for failed assertions
+			if !assertion.Passed && assertion.Message != "" {
+				result += fmt.Sprintf("\n      %s", assertion.Message)
+			}
+		}
+	}
+
+	// Backward compatibility: show legacy failures if assertions list is empty
+	if len(tr.Assertions) == 0 && tr.Failed > 0 {
 		result += "\nFailures:\n"
 		for _, failure := range tr.Failures {
-			result += fmt.Sprintf("  - %s\n", failure)
+			result += fmt.Sprintf("  - [%s] %s\n", tr.Label, failure)
 		}
 	}
 

@@ -126,7 +126,7 @@ fn createStack() ::
     return self.last
   end
 
-  stack.isEmpty = fn(self) ::
+  stack.is_empty = fn(self) ::
     return self.length == 0
   end
 
@@ -145,7 +145,7 @@ myStack = myStack.push(30)
 check "String based Person type" ::
   myStack.peek is 30
   myStack.size is 3
-  myStack.isEmpty is false
+  myStack.is_empty is false
 end
 
 # ==========================================
