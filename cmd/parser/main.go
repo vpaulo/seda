@@ -12,6 +12,7 @@ import (
 	"github.com/vpaulo/seda/lexer"
 	"github.com/vpaulo/seda/object"
 	"github.com/vpaulo/seda/parser"
+	"github.com/vpaulo/seda/pkg"
 )
 
 var (
@@ -36,6 +37,24 @@ func main() {
 		return
 	}
 
+	// Check if first argument is a package management command
+	command := flag.Arg(0)
+	switch command {
+	case "install":
+		handle_install()
+		return
+	case "update":
+		handle_update()
+		return
+	case "remove":
+		handle_remove()
+		return
+	case "list":
+		handle_list()
+		return
+	}
+
+	// Otherwise, treat as a source file
 	if flag.NArg() != 1 {
 		fmt.Fprintf(os.Stderr, "Error: Please provide exactly one source file\n\n")
 		usage()
@@ -140,12 +159,21 @@ func usage() {
 	fmt.Println("OPTIONS:")
 	flag.PrintDefaults()
 	fmt.Println()
+	fmt.Println("PACKAGE MANAGEMENT COMMANDS:")
+	fmt.Println("  seda install <package-url>   # Install a package from git repository")
+	fmt.Println("  seda update <package-name>   # Update an installed package")
+	fmt.Println("  seda remove <package-name>   # Remove an installed package")
+	fmt.Println("  seda list                    # List all installed packages")
+	fmt.Println()
 	fmt.Println("EXAMPLES:")
-	fmt.Println("  seda                        # Start interactive REPL")
-	fmt.Println("  seda program.s              # Execute program.s")
-	fmt.Println("  seda -test program.s        # Run tests in program.s")
-	fmt.Println("  seda -ast program.s         # Show AST of program.s")
-	fmt.Println("  seda -verbose program.s     # Execute with detailed output")
+	fmt.Println("  seda                                      # Start interactive REPL")
+	fmt.Println("  seda program.s                            # Execute program.s")
+	fmt.Println("  seda -test program.s                      # Run tests in program.s")
+	fmt.Println("  seda -ast program.s                       # Show AST of program.s")
+	fmt.Println("  seda -verbose program.s                   # Execute with detailed output")
+	fmt.Println("  seda -help                                # Show this help message")
+	fmt.Println("  seda install github.com/user/awesome-lib  # Install a package")
+	fmt.Println("  seda list                                 # List installed packages")
 }
 
 const PROMPT = ">> "
@@ -227,4 +255,56 @@ func printReplHelp() {
 func clearEnvironment(env *object.Environment) {
 	// Create a new clean environment
 	*env = *object.NewEnvironment()
+}
+
+// Package management commands
+
+func handle_install() {
+	if flag.NArg() < 2 {
+		fmt.Println("Error: package URL required")
+		fmt.Println("Usage: seda install <package-url>")
+		os.Exit(1)
+	}
+	package_url := flag.Arg(1)
+	manager := pkg.NewManager()
+	if err := manager.Install(package_url); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func handle_update() {
+	if flag.NArg() < 2 {
+		fmt.Println("Error: package name required")
+		fmt.Println("Usage: seda update <package-name>")
+		os.Exit(1)
+	}
+	package_name := flag.Arg(1)
+	manager := pkg.NewManager()
+	if err := manager.Update(package_name); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func handle_remove() {
+	if flag.NArg() < 2 {
+		fmt.Println("Error: package name required")
+		fmt.Println("Usage: seda remove <package-name>")
+		os.Exit(1)
+	}
+	package_name := flag.Arg(1)
+	manager := pkg.NewManager()
+	if err := manager.Remove(package_name); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func handle_list() {
+	manager := pkg.NewManager()
+	if err := manager.List(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
 }

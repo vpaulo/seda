@@ -99,21 +99,37 @@ func (m *Manager) Remove(package_name string) error {
 
 // List lists all installed packages
 func (m *Manager) List() error {
-	entries, err := os.ReadDir(m.PackagesDir)
+	packages := []string{}
+
+	err := filepath.Walk(m.PackagesDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory itself
+		if path == m.PackagesDir {
+			return nil
+		}
+
+		if !info.IsDir() /*&& filepath.Dir(path) == m.PackagesDir*/ {
+			packages = append(packages, filepath.Dir(path)[len(m.PackagesDir):]+"/"+info.Name())
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		return fmt.Errorf("failed to read packages directory: %v", err)
 	}
 
-	if len(entries) == 0 {
+	if len(packages) == 0 {
 		fmt.Println("No packages installed")
 		return nil
 	}
 
 	fmt.Println("Installed packages:")
-	for _, entry := range entries {
-		if entry.IsDir() {
-			fmt.Printf("  - %s\n", entry.Name())
-		}
+	for _, pkg := range packages {
+		fmt.Printf("  - %s\n", pkg[1:])
 	}
 
 	return nil
