@@ -117,7 +117,7 @@ func (m *Manager) List() error {
 			return nil
 		}
 
-		if !info.IsDir() /*&& filepath.Dir(path) == m.PackagesDir*/ {
+		if !info.IsDir() && info.Name() == "module.s" {
 			packages = append(packages, filepath.Dir(path)[len(m.PackagesDir):]+"/"+info.Name())
 		}
 

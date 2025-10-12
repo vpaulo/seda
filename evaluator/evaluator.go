@@ -1689,7 +1689,7 @@ func parse_git_url(path string) (repo string, subdir string) {
 }
 
 // download_git_module downloads a git repository module using the package manager
-func download_git_module(path, targetPath string) (string, error) {
+func download_git_module(path, target_path string) (string, error) {
 	// Use package manager to install the module
 	manager := pkg.NewManager()
 
@@ -1705,9 +1705,9 @@ func download_git_module(path, targetPath string) (string, error) {
 	}
 
 	// Check if module.s exists in the installed package (including subdirectory)
-	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("module.s not found in repository %s at path %s", path, targetPath)
+	if _, err := os.Stat(target_path); os.IsNotExist(err) {
+		return "", fmt.Errorf("module.s not found in repository %s at path %s", path, target_path)
 	}
 
-	return targetPath, nil
+	return target_path, nil
 }
