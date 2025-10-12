@@ -40,6 +40,12 @@ func (m *Manager) Install(repo_url string) error {
 
 	fmt.Printf("Installing package %s...\n", package_name)
 
+	// Ensure parent directories exist
+	parent_dir := filepath.Dir(package_path)
+	if err := os.MkdirAll(parent_dir, 0755); err != nil {
+		return fmt.Errorf("failed to create parent directories: %v", err)
+	}
+
 	// Clone the repository
 	cmd := exec.Command("git", "clone", repo_url, package_path)
 	cmd.Stdout = os.Stdout
@@ -152,17 +158,23 @@ func (m *Manager) get_package_name(repo_url string) string {
 	// Handle different URL formats
 	if strings.HasPrefix(repo_url, "https://github.com/") {
 		// Extract user/repo from GitHub URL
-		parts := strings.TrimPrefix(repo_url, "https://github.com/")
+		// Keep directory structure: github.com/user/repo
+		parts := strings.TrimPrefix(repo_url, "https://")
 		parts = strings.TrimSuffix(parts, ".git")
-		return strings.ReplaceAll(parts, "/", "-")
+		return parts
+	}
+
+	if strings.HasPrefix(repo_url, "https://gitlab.com/") {
+		// Extract user/repo from GitLab URL
+		parts := strings.TrimPrefix(repo_url, "https://")
+		parts = strings.TrimSuffix(parts, ".git")
+		return parts
 	}
 
 	if strings.Contains(repo_url, "/") {
 		// For URLs like github.com/user/repo
-		parts := strings.Split(repo_url, "/")
-		if len(parts) >= 2 {
-			return strings.Join(parts[len(parts)-2:], "-")
-		}
+		parts := strings.TrimSuffix(repo_url, ".git")
+		return parts
 	}
 
 	// Default: use the last part of the URL

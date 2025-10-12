@@ -1597,8 +1597,17 @@ func resolve_third_party_module(path string) (string, error) {
 		return "", fmt.Errorf("could not get home directory: %v", err)
 	}
 
-	// Third-party package path: ~/.seda/packages/github.com/user/repo/module.s
-	package_path := filepath.Join(home_dir, ".seda", "packages", path, "module.s")
+	// Parse the path to extract repository and subdirectory
+	// Format: github.com/user/repo/subdir/...
+	repo_path, subdir := parse_git_url(path)
+
+	// Construct the local package path
+	var package_path string
+	if subdir != "" {
+		package_path = filepath.Join(home_dir, ".seda", "packages", repo_path, subdir, "module.s")
+	} else {
+		package_path = filepath.Join(home_dir, ".seda", "packages", repo_path, "module.s")
+	}
 
 	// Check if already cached
 	if _, err := os.Stat(package_path); err == nil {
@@ -1652,22 +1661,52 @@ func resolve_local_module(path string, sourceDir string) (string, error) {
 	return abs_path, nil
 }
 
+// parse_git_url parses a git URL path to extract repository and subdirectory
+// Input: "github.com/user/repo/subdir/more" -> Output: ("github.com/user/repo", "subdir/more")
+// Input: "github.com/user/repo" -> Output: ("github.com/user/repo", "")
+func parse_git_url(path string) (repo string, subdir string) {
+	// Remove trailing slashes
+	path = strings.TrimSuffix(path, "/")
+
+	// Split the path by "/"
+	parts := strings.Split(path, "/")
+
+	// For GitHub URLs, format is: github.com/user/repo/[subdir/...]
+	// We need at least 3 parts: github.com, user, repo
+	if len(parts) < 3 {
+		return path, ""
+	}
+
+	// Repository is the first 3 parts (github.com/user/repo)
+	repo = strings.Join(parts[:3], "/")
+
+	// Subdirectory is everything after
+	if len(parts) > 3 {
+		subdir = strings.Join(parts[3:], "/")
+	}
+
+	return repo, subdir
+}
+
 // download_git_module downloads a git repository module using the package manager
 func download_git_module(path, targetPath string) (string, error) {
 	// Use package manager to install the module
 	manager := pkg.NewManager()
 
-	// Convert path to repository URL
-	repo_url := "https://" + path + ".git"
+	// Parse the path to get repository and subdirectory
+	repo_path, _ := parse_git_url(path)
+
+	// Convert repository path to URL
+	repo_url := "https://" + repo_path + ".git"
 
 	// Install the package
 	if err := manager.Install(repo_url); err != nil {
-		return "", fmt.Errorf("could not install package %s: %v", path, err)
+		return "", fmt.Errorf("could not install package %s: %v", repo_path, err)
 	}
 
-	// Check if module.s exists in the installed package
+	// Check if module.s exists in the installed package (including subdirectory)
 	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("module.s not found in repository %s", path)
+		return "", fmt.Errorf("module.s not found in repository %s at path %s", path, targetPath)
 	}
 
 	return targetPath, nil
