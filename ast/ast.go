@@ -422,7 +422,11 @@ type Assertion struct {
 }
 
 func (a *Assertion) String() string {
-	return a.Left.String() + " " + a.Operator + " " + a.Right.String()
+	if a.Right != nil {
+		return a.Left.String() + " " + a.Operator + " " + a.Right.String()
+	}
+	// Unary assertion (no right operand)
+	return a.Left.String() + " " + a.Operator
 }
 
 // Expression implementations

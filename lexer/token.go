@@ -74,7 +74,16 @@ const (
 	END      // end
 	IS       // is
 	ISA      // isA
+	ISNOT    // isNot
 	CONTAINS // contains
+	ISGREATER // isGreater
+	ISLESS    // isLess
+	ISTRUE    // isTrue
+	ISFALSE   // isFalse
+	ISEMPTY   // isEmpty
+	STARTSWITH // startsWith
+	ENDSWITH   // endsWith
+	RAISES     // raises
 	SELF     // self
 	RETURN   // return
 	BREAK    // break
@@ -209,8 +218,26 @@ func (t TokenType) String() string {
 		return "is"
 	case ISA:
 		return "isA"
+	case ISNOT:
+		return "isNot"
 	case CONTAINS:
 		return "contains"
+	case ISGREATER:
+		return "isGreater"
+	case ISLESS:
+		return "isLess"
+	case ISTRUE:
+		return "isTrue"
+	case ISFALSE:
+		return "isFalse"
+	case ISEMPTY:
+		return "isEmpty"
+	case STARTSWITH:
+		return "startsWith"
+	case ENDSWITH:
+		return "endsWith"
+	case RAISES:
+		return "raises"
 	case SELF:
 		return "self"
 	case RETURN:
@@ -265,11 +292,20 @@ var keywords = map[string]TokenType{
 	"in":       IN,
 	"check":    CHECK,
 	"where":    WHERE,
-	"end":      END,
-	"is":       IS,
-	"isA":      ISA,
-	"contains": CONTAINS,
-	"self":     SELF,
+	"end":        END,
+	"is":         IS,
+	"isA":        ISA,
+	"isNot":      ISNOT,
+	"contains":   CONTAINS,
+	"isGreater":  ISGREATER,
+	"isLess":     ISLESS,
+	"isTrue":     ISTRUE,
+	"isFalse":    ISFALSE,
+	"isEmpty":    ISEMPTY,
+	"startsWith": STARTSWITH,
+	"endsWith":   ENDSWITH,
+	"raises":     RAISES,
+	"self":       SELF,
 	"return":   RETURN,
 	"break":    BREAK,
 	"true":     TRUE,

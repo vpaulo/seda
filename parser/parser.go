@@ -767,14 +767,50 @@ func (parser *Parser) parse_assertion() *ast.Assertion {
 	parser.next_token()
 	assertion.Operator = parser.current_token.Literal
 
-	parser.next_token()
-	assertion.Right = parser.parse_expression(LOWEST)
+	// Check if this is a unary assertion (no right operand)
+	if parser.is_unary_assertion_operator(parser.current_token.Type) {
+		// Unary assertions don't have a right operand
+		assertion.Right = nil
+	} else if parser.current_token.Type == lexer.RAISES {
+		// Special case: raises assertion has an optional right operand (string for error message)
+		// Only STRING tokens are valid as the right operand
+		if parser.peek_token.Type == lexer.STRING {
+			parser.next_token()
+			// Parse with highest precedence to prevent infix operators from continuing
+			assertion.Right = parser.parse_expression(CALL)
+		} else {
+			// No right operand - treat as unary
+			assertion.Right = nil
+		}
+	} else {
+		// Binary assertions require a right operand
+		parser.next_token()
+		// Parse with highest precedence to prevent infix operators from continuing
+		assertion.Right = parser.parse_expression(CALL)
+	}
 
 	return assertion
 }
 
 func (parser *Parser) is_assertion_operator(token_type lexer.TokenType) bool {
-	return token_type == lexer.IS || token_type == lexer.ISA || token_type == lexer.CONTAINS
+	return token_type == lexer.IS ||
+		token_type == lexer.ISA ||
+		token_type == lexer.ISNOT ||
+		token_type == lexer.CONTAINS ||
+		token_type == lexer.ISGREATER ||
+		token_type == lexer.ISLESS ||
+		token_type == lexer.ISTRUE ||
+		token_type == lexer.ISFALSE ||
+		token_type == lexer.ISEMPTY ||
+		token_type == lexer.STARTSWITH ||
+		token_type == lexer.ENDSWITH ||
+		token_type == lexer.RAISES
+}
+
+func (parser *Parser) is_unary_assertion_operator(token_type lexer.TokenType) bool {
+	return token_type == lexer.ISTRUE ||
+		token_type == lexer.ISFALSE ||
+		token_type == lexer.ISEMPTY
 }
 
 // parse_expression parses expressions using Pratt parsing
