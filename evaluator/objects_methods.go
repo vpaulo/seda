@@ -78,6 +78,369 @@ func call_string_method(str *object.String, method_name string, args []object.Ob
 		}
 
 		return &object.String{Value: str.Value[start_idx:end_idx]}
+
+	case "split":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.split. got=%d, want=1", len(args))
+		}
+
+		delimiter, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to String.split must be STRING, got %s", args[0].Type())
+		}
+
+		parts := strings.Split(str.Value, delimiter.Value)
+		elements := make([]object.Object, len(parts))
+		for i, part := range parts {
+			elements[i] = &object.String{Value: part}
+		}
+		return &object.Array{Elements: elements}
+
+	case "trim":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.trim. got=%d, want=0", len(args))
+		}
+		return &object.String{Value: strings.TrimSpace(str.Value)}
+
+	case "replace":
+		if len(args) != 2 {
+			return object.NewError("wrong number of arguments for String.replace. got=%d, want=2", len(args))
+		}
+
+		old, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("first argument to String.replace must be STRING, got %s", args[0].Type())
+		}
+
+		new, ok := args[1].(*object.String)
+		if !ok {
+			return object.NewError("second argument to String.replace must be STRING, got %s", args[1].Type())
+		}
+
+		return &object.String{Value: strings.ReplaceAll(str.Value, old.Value, new.Value)}
+
+	case "starts_with":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.starts_with. got=%d, want=1", len(args))
+		}
+
+		prefix, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to String.starts_with must be STRING, got %s", args[0].Type())
+		}
+
+		if strings.HasPrefix(str.Value, prefix.Value) {
+			return object.TRUE
+		}
+		return object.FALSE
+
+	case "ends_with":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.ends_with. got=%d, want=1", len(args))
+		}
+
+		suffix, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to String.ends_with must be STRING, got %s", args[0].Type())
+		}
+
+		if strings.HasSuffix(str.Value, suffix.Value) {
+			return object.TRUE
+		}
+		return object.FALSE
+
+	case "index_of":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.index_of. got=%d, want=1", len(args))
+		}
+
+		substring, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to String.index_of must be STRING, got %s", args[0].Type())
+		}
+
+		index := strings.Index(str.Value, substring.Value)
+		return &object.Number{Value: float64(index)}
+
+	case "char_at":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.char_at. got=%d, want=1", len(args))
+		}
+
+		idx, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to String.char_at must be NUMBER, got %s", args[0].Type())
+		}
+
+		index := int(idx.Value)
+		if index < 0 || index >= len(str.Value) {
+			return object.NewError("index out of bounds")
+		}
+
+		return &object.String{Value: string(str.Value[index])}
+
+	case "trim_left":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.trim_left. got=%d, want=0", len(args))
+		}
+		return &object.String{Value: strings.TrimLeft(str.Value, " \t\n\r")}
+
+	case "trim_right":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.trim_right. got=%d, want=0", len(args))
+		}
+		return &object.String{Value: strings.TrimRight(str.Value, " \t\n\r")}
+
+	case "contains":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.contains. got=%d, want=1", len(args))
+		}
+
+		substring, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to String.contains must be STRING, got %s", args[0].Type())
+		}
+
+		if strings.Contains(str.Value, substring.Value) {
+			return object.TRUE
+		}
+		return object.FALSE
+
+	case "last_index_of":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.last_index_of. got=%d, want=1", len(args))
+		}
+
+		substring, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to String.last_index_of must be STRING, got %s", args[0].Type())
+		}
+
+		index := strings.LastIndex(str.Value, substring.Value)
+		return &object.Number{Value: float64(index)}
+
+	case "count":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.count. got=%d, want=1", len(args))
+		}
+
+		substring, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to String.count must be STRING, got %s", args[0].Type())
+		}
+
+		count := strings.Count(str.Value, substring.Value)
+		return &object.Number{Value: float64(count)}
+
+	case "replace_first":
+		if len(args) != 2 {
+			return object.NewError("wrong number of arguments for String.replace_first. got=%d, want=2", len(args))
+		}
+
+		old, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("first argument to String.replace_first must be STRING, got %s", args[0].Type())
+		}
+
+		new, ok := args[1].(*object.String)
+		if !ok {
+			return object.NewError("second argument to String.replace_first must be STRING, got %s", args[1].Type())
+		}
+
+		return &object.String{Value: strings.Replace(str.Value, old.Value, new.Value, 1)}
+
+	case "reverse":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.reverse. got=%d, want=0", len(args))
+		}
+
+		runes := []rune(str.Value)
+		for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+			runes[i], runes[j] = runes[j], runes[i]
+		}
+		return &object.String{Value: string(runes)}
+
+	case "repeat":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for String.repeat. got=%d, want=1", len(args))
+		}
+
+		count, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to String.repeat must be NUMBER, got %s", args[0].Type())
+		}
+
+		return &object.String{Value: strings.Repeat(str.Value, int(count.Value))}
+
+	case "lines":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.lines. got=%d, want=0", len(args))
+		}
+
+		lines := strings.Split(str.Value, "\n")
+		elements := make([]object.Object, len(lines))
+		for i, line := range lines {
+			elements[i] = &object.String{Value: line}
+		}
+		return &object.Array{Elements: elements}
+
+	case "chars":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.chars. got=%d, want=0", len(args))
+		}
+
+		runes := []rune(str.Value)
+		elements := make([]object.Object, len(runes))
+		for i, r := range runes {
+			elements[i] = &object.String{Value: string(r)}
+		}
+		return &object.Array{Elements: elements}
+
+	case "words":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.words. got=%d, want=0", len(args))
+		}
+
+		words := strings.Fields(str.Value) // Splits by whitespace and trims
+		elements := make([]object.Object, len(words))
+		for i, word := range words {
+			elements[i] = &object.String{Value: word}
+		}
+		return &object.Array{Elements: elements}
+
+	case "capitalize":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.capitalize. got=%d, want=0", len(args))
+		}
+
+		if len(str.Value) == 0 {
+			return str
+		}
+
+		runes := []rune(str.Value)
+		runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
+		return &object.String{Value: string(runes)}
+
+	case "title_case":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.title_case. got=%d, want=0", len(args))
+		}
+
+		return &object.String{Value: strings.Title(str.Value)}
+
+	case "is_empty":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.is_empty. got=%d, want=0", len(args))
+		}
+
+		if len(str.Value) == 0 {
+			return object.TRUE
+		}
+		return object.FALSE
+
+	case "is_blank":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.is_blank. got=%d, want=0", len(args))
+		}
+
+		if len(strings.TrimSpace(str.Value)) == 0 {
+			return object.TRUE
+		}
+		return object.FALSE
+
+	case "is_numeric":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.is_numeric. got=%d, want=0", len(args))
+		}
+
+		for _, r := range str.Value {
+			if !strings.ContainsRune("0123456789", r) {
+				return object.FALSE
+			}
+		}
+		if len(str.Value) == 0 {
+			return object.FALSE
+		}
+		return object.TRUE
+
+	case "is_alpha":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for String.is_alpha. got=%d, want=0", len(args))
+		}
+
+		for _, r := range str.Value {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')) {
+				return object.FALSE
+			}
+		}
+		if len(str.Value) == 0 {
+			return object.FALSE
+		}
+		return object.TRUE
+
+	case "pad_left":
+		if len(args) != 2 {
+			return object.NewError("wrong number of arguments for String.pad_left. got=%d, want=2", len(args))
+		}
+
+		width, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("first argument to String.pad_left must be NUMBER, got %s", args[0].Type())
+		}
+
+		pad_str, ok := args[1].(*object.String)
+		if !ok {
+			return object.NewError("second argument to String.pad_left must be STRING, got %s", args[1].Type())
+		}
+
+		target_width := int(width.Value)
+		current_len := len(str.Value)
+		if current_len >= target_width {
+			return str
+		}
+
+		pad_len := target_width - current_len
+		if len(pad_str.Value) == 0 {
+			return str
+		}
+
+		// Repeat padding string enough times
+		padding := strings.Repeat(pad_str.Value, (pad_len/len(pad_str.Value))+1)
+		padding = padding[:pad_len] // Trim to exact length needed
+
+		return &object.String{Value: padding + str.Value}
+
+	case "pad_right":
+		if len(args) != 2 {
+			return object.NewError("wrong number of arguments for String.pad_right. got=%d, want=2", len(args))
+		}
+
+		width, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("first argument to String.pad_right must be NUMBER, got %s", args[0].Type())
+		}
+
+		pad_str, ok := args[1].(*object.String)
+		if !ok {
+			return object.NewError("second argument to String.pad_right must be STRING, got %s", args[1].Type())
+		}
+
+		target_width := int(width.Value)
+		current_len := len(str.Value)
+		if current_len >= target_width {
+			return str
+		}
+
+		pad_len := target_width - current_len
+		if len(pad_str.Value) == 0 {
+			return str
+		}
+
+		// Repeat padding string enough times
+		padding := strings.Repeat(pad_str.Value, (pad_len/len(pad_str.Value))+1)
+		padding = padding[:pad_len] // Trim to exact length needed
+
+		return &object.String{Value: str.Value + padding}
 	}
 
 	// Check for instance-specific custom properties

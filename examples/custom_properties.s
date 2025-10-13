@@ -4,13 +4,13 @@ println("Running custom properties tests...")
 
 # String Custom Properties
 const str = "hello"
-str.reverse = fn(self) ::
-  return self.upper
+str.to_upper = fn(self) ::
+  return self.upper()
 end
 str.label = "greeting"
 
 check "string custom properties" ::
-  str.reverse is "HELLO"
+  str.to_upper is "HELLO"
   str.label is "greeting"
 end
 
