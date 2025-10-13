@@ -409,12 +409,17 @@ func (cb *CaseBranch) String() string {
 
 // WhereBlock represents function test blocks
 type WhereBlock struct {
+	Statements []Statement  // statements (e.g. var declarations) before assertions
 	Assertions []*Assertion
 }
 
 func (wb *WhereBlock) String() string {
 	var out bytes.Buffer
 	out.WriteString("where ::")
+	for _, stmt := range wb.Statements {
+		out.WriteString("\n  ")
+		out.WriteString(stmt.String())
+	}
 	for _, assertion := range wb.Assertions {
 		out.WriteString("\n  ")
 		out.WriteString(assertion.String())

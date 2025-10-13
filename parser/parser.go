@@ -604,8 +604,9 @@ func (parser *Parser) parse_check_statement() *ast.CheckStatement {
 
 	parser.next_token()
 	for parser.current_token.Type != lexer.END && parser.current_token.Type != lexer.EOF {
-		// If not an assertion, try to parse as a statement (var/const declarations)
-		if parser.current_token.Type == lexer.VAR || parser.current_token.Type == lexer.CONST {
+		// Try to parse as a statement first (var, const, for, if, etc.)
+		// Check if the current token can start a statement
+		if parser.is_statement_token(parser.current_token.Type) {
 			statement := parser.parse_statement()
 			if statement != nil {
 				stmt.Statements = append(stmt.Statements, statement)
@@ -753,6 +754,7 @@ func (parser *Parser) parse_where_block() *ast.WhereBlock {
 		return nil
 	}
 
+	wb.Statements = []ast.Statement{}
 	wb.Assertions = []*ast.Assertion{}
 
 	parser.next_token()
@@ -762,9 +764,20 @@ func (parser *Parser) parse_where_block() *ast.WhereBlock {
 			parser.next_token()
 			continue
 		}
-		assertion := parser.parse_assertion()
-		if assertion != nil {
-			wb.Assertions = append(wb.Assertions, assertion)
+
+		// Try to parse as a statement first (var, const, for, if, etc.)
+		// Check if the current token can start a statement
+		if parser.is_statement_token(parser.current_token.Type) {
+			statement := parser.parse_statement()
+			if statement != nil {
+				wb.Statements = append(wb.Statements, statement)
+			}
+		} else {
+			// Try to parse as assertion
+			assertion := parser.parse_assertion()
+			if assertion != nil {
+				wb.Assertions = append(wb.Assertions, assertion)
+			}
 		}
 		parser.next_token()
 	}
@@ -830,6 +843,16 @@ func (parser *Parser) is_unary_assertion_operator(token_type lexer.TokenType) bo
 	return token_type == lexer.ISTRUE ||
 		token_type == lexer.ISFALSE ||
 		token_type == lexer.ISEMPTY
+}
+
+// is_statement_token checks if a token can start a statement
+func (parser *Parser) is_statement_token(token_type lexer.TokenType) bool {
+	return token_type == lexer.VAR ||
+		token_type == lexer.CONST ||
+		token_type == lexer.FOR ||
+		token_type == lexer.IF ||
+		token_type == lexer.RETURN ||
+		token_type == lexer.BREAK
 }
 
 // parse_expression parses expressions using Pratt parsing

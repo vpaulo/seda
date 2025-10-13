@@ -1460,6 +1460,17 @@ func eval_where_block(where_block *ast.WhereBlock, env *object.Environment, retu
 		test_env.Set("arg2", args[2])
 	}
 
+	// Evaluate statements (e.g., var/const declarations) first
+	for _, stmt := range where_block.Statements {
+		eval_result := Eval(stmt, test_env)
+		if is_error(eval_result) {
+			result.Failed++
+			result.Failures = append(result.Failures, eval_result.(*object.Error).Message)
+			return result
+		}
+	}
+
+	// Then evaluate assertions
 	for _, assertion := range where_block.Assertions {
 		passed, message := eval_assertion(assertion, test_env)
 		if passed {
