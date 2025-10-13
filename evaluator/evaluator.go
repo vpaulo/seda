@@ -1229,7 +1229,8 @@ func unwrap_return_value(obj object.Object) object.Object {
 
 func eval_dot_expression(node *ast.DotExpression, env *object.Environment) object.Object {
 	left := Eval(node.Left, env)
-	if is_error(left) {
+	// Only propagate runtime errors, allow user-created errors to have methods called on them
+	if is_runtime_error(left) {
 		return left
 	}
 
@@ -1264,7 +1265,8 @@ func eval_dot_expression(node *ast.DotExpression, env *object.Environment) objec
 func eval_method_call(dot_expr *ast.DotExpression, arguments []ast.Expression, env *object.Environment) object.Object {
 	// Evaluate the object (receiver)
 	receiver := Eval(dot_expr.Left, env)
-	if is_error(receiver) {
+	// Only propagate runtime errors, allow user-created errors to have methods called on them
+	if is_runtime_error(receiver) {
 		return receiver
 	}
 
