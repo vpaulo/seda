@@ -3,6 +3,7 @@ package evaluator
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,12 +28,18 @@ var global_string_object *object.Map
 var global_number_object *object.Map
 var global_map_object *object.Map
 
+// Global module objects
+var global_math_module *object.Map
+
 func init() {
 	// Initialize the global type objects
 	global_array_object = &object.Map{Pairs: make(map[string]object.MapPair)}
 	global_string_object = &object.Map{Pairs: make(map[string]object.MapPair)}
 	global_number_object = &object.Map{Pairs: make(map[string]object.MapPair)}
 	global_map_object = &object.Map{Pairs: make(map[string]object.MapPair)}
+
+	// Initialize global modules
+	global_math_module = init_math_module()
 
 	// Set up the evaluator reference for object_methods
 	SetEvaluator(func(node interface{}, env *object.Environment) object.Object {
@@ -489,6 +496,13 @@ func eval_identifier(node *ast.Identifier, env *object.Environment) object.Objec
 		// Check for global functions (print, println)
 		if builtin := get_global_function(node.Value); builtin != nil {
 			return builtin
+		}
+		// Check for global modules
+		if node.Value == "Math" {
+			if global_math_module == nil {
+				global_math_module = init_math_module()
+			}
+			return global_math_module
 		}
 		// Check for global type objects
 		if node.Value == "Array" {
@@ -1297,6 +1311,22 @@ func eval_method_call(dot_expr *ast.DotExpression, arguments []ast.Expression, e
 		return object.NewError("undefined function '%s' in module '%s'", function_name, module.Name)
 	}
 
+	// Handle Map function calls - check Pairs for functions (like Math module functions)
+	if map_obj, ok := receiver.(*object.Map); ok {
+		method_name := dot_expr.Property.Value
+		if pair, exists := map_obj.Pairs[method_name]; exists {
+			// Evaluate arguments
+			args := eval_expressions(arguments, env)
+			if len(args) == 1 && is_error(args[0]) {
+				return args[0]
+			}
+
+			// Call the function
+			return apply_function(pair.Value, args, env)
+		}
+		// If not found in Pairs, fall through to call_object_method for custom methods
+	}
+
 	// Evaluate arguments
 	args := eval_expressions(arguments, env)
 	if len(args) == 1 && is_error(args[0]) {
@@ -2013,4 +2043,220 @@ func download_git_module(path, target_path string) (string, error) {
 	}
 
 	return target_path, nil
+}
+
+// init_math_module initializes the Math module with all math functions and constants
+func init_math_module() *object.Map {
+	math_module := &object.Map{Pairs: make(map[string]object.MapPair)}
+
+	// Math.pow(base, exponent) - power function
+	math_module.Pairs["pow"] = object.MapPair{
+		Key: &object.String{Value: "pow"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 2 {
+					return object.NewError("wrong number of arguments for Math.pow. got=%d, want=2", len(args))
+				}
+				base, ok := args[0].(*object.Number)
+				if !ok {
+					return object.NewError("first argument to Math.pow must be NUMBER, got %s", args[0].Type())
+				}
+				exp, ok := args[1].(*object.Number)
+				if !ok {
+					return object.NewError("second argument to Math.pow must be NUMBER, got %s", args[1].Type())
+				}
+				return &object.Number{Value: math.Pow(base.Value, exp.Value)}
+			},
+		},
+	}
+
+	// Math.max(...values) - variadic maximum
+	math_module.Pairs["max"] = object.MapPair{
+		Key: &object.String{Value: "max"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) == 0 {
+					return object.NewError("Math.max requires at least one argument")
+				}
+				max_val := math.Inf(-1)
+				for i, arg := range args {
+					num, ok := arg.(*object.Number)
+					if !ok {
+						return object.NewError("argument %d to Math.max must be NUMBER, got %s", i, arg.Type())
+					}
+					if num.Value > max_val {
+						max_val = num.Value
+					}
+				}
+				return &object.Number{Value: max_val}
+			},
+		},
+	}
+
+	// Math.min(...values) - variadic minimum
+	math_module.Pairs["min"] = object.MapPair{
+		Key: &object.String{Value: "min"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) == 0 {
+					return object.NewError("Math.min requires at least one argument")
+				}
+				min_val := math.Inf(1)
+				for i, arg := range args {
+					num, ok := arg.(*object.Number)
+					if !ok {
+						return object.NewError("argument %d to Math.min must be NUMBER, got %s", i, arg.Type())
+					}
+					if num.Value < min_val {
+						min_val = num.Value
+					}
+				}
+				return &object.Number{Value: min_val}
+			},
+		},
+	}
+
+	// Trigonometry functions
+	math_module.Pairs["sin"] = object.MapPair{
+		Key:   &object.String{Value: "sin"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Sin, "Math.sin")},
+	}
+
+	math_module.Pairs["cos"] = object.MapPair{
+		Key:   &object.String{Value: "cos"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Cos, "Math.cos")},
+	}
+
+	math_module.Pairs["tan"] = object.MapPair{
+		Key:   &object.String{Value: "tan"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Tan, "Math.tan")},
+	}
+
+	math_module.Pairs["asin"] = object.MapPair{
+		Key:   &object.String{Value: "asin"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Asin, "Math.asin")},
+	}
+
+	math_module.Pairs["acos"] = object.MapPair{
+		Key:   &object.String{Value: "acos"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Acos, "Math.acos")},
+	}
+
+	math_module.Pairs["atan"] = object.MapPair{
+		Key:   &object.String{Value: "atan"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Atan, "Math.atan")},
+	}
+
+	math_module.Pairs["atan2"] = object.MapPair{
+		Key: &object.String{Value: "atan2"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 2 {
+					return object.NewError("wrong number of arguments for Math.atan2. got=%d, want=2", len(args))
+				}
+				y, ok := args[0].(*object.Number)
+				if !ok {
+					return object.NewError("first argument to Math.atan2 must be NUMBER, got %s", args[0].Type())
+				}
+				x, ok := args[1].(*object.Number)
+				if !ok {
+					return object.NewError("second argument to Math.atan2 must be NUMBER, got %s", args[1].Type())
+				}
+				return &object.Number{Value: math.Atan2(y.Value, x.Value)}
+			},
+		},
+	}
+
+	// Logarithm functions
+	math_module.Pairs["log"] = object.MapPair{
+		Key:   &object.String{Value: "log"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Log, "Math.log")},
+	}
+
+	math_module.Pairs["log10"] = object.MapPair{
+		Key:   &object.String{Value: "log10"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Log10, "Math.log10")},
+	}
+
+	math_module.Pairs["log2"] = object.MapPair{
+		Key:   &object.String{Value: "log2"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Log2, "Math.log2")},
+	}
+
+	math_module.Pairs["exp"] = object.MapPair{
+		Key:   &object.String{Value: "exp"},
+		Value: &object.Builtin{Fn: math_unary_builtin(math.Exp, "Math.exp")},
+	}
+
+	// Random functions
+	math_module.Pairs["random"] = object.MapPair{
+		Key: &object.String{Value: "random"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for Math.random. got=%d, want=0", len(args))
+				}
+				return &object.Number{Value: rand.Float64()}
+			},
+		},
+	}
+
+	math_module.Pairs["random_int"] = object.MapPair{
+		Key: &object.String{Value: "random_int"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 2 {
+					return object.NewError("wrong number of arguments for Math.random_int. got=%d, want=2", len(args))
+				}
+				min, ok := args[0].(*object.Number)
+				if !ok {
+					return object.NewError("first argument to Math.random_int must be NUMBER, got %s", args[0].Type())
+				}
+				max, ok := args[1].(*object.Number)
+				if !ok {
+					return object.NewError("second argument to Math.random_int must be NUMBER, got %s", args[1].Type())
+				}
+				min_int := int(min.Value)
+				max_int := int(max.Value)
+				if min_int >= max_int {
+					return object.NewError("Math.random_int: min must be less than max")
+				}
+				// Generate random integer in [min, max)
+				random_val := min_int + rand.Intn(max_int-min_int)
+				return &object.Number{Value: float64(random_val)}
+			},
+		},
+	}
+
+	// Math constants
+	math_module.Pairs["PI"] = object.MapPair{
+		Key:   &object.String{Value: "PI"},
+		Value: &object.Number{Value: math.Pi},
+	}
+
+	math_module.Pairs["E"] = object.MapPair{
+		Key:   &object.String{Value: "E"},
+		Value: &object.Number{Value: math.E},
+	}
+
+	math_module.Pairs["TAU"] = object.MapPair{
+		Key:   &object.String{Value: "TAU"},
+		Value: &object.Number{Value: 2 * math.Pi},
+	}
+
+	return math_module
+}
+
+// math_unary_builtin creates a builtin wrapper for unary math functions
+func math_unary_builtin(fn func(float64) float64, name string) func(...object.Object) object.Object {
+	return func(args ...object.Object) object.Object {
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for %s. got=%d, want=1", name, len(args))
+		}
+		num, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to %s must be NUMBER, got %s", name, args[0].Type())
+		}
+		return &object.Number{Value: fn(num.Value)}
+	}
 }
