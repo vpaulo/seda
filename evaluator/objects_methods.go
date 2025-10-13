@@ -350,6 +350,7 @@ var global_functions = map[string]*object.Builtin{
 	"print":   {Fn: print_builtin},
 	"println": {Fn: println_builtin},
 	"isNull":  {Fn: is_null_builtin},
+	"error":   {Fn: error_builtin},
 }
 
 // get_global_function returns a global function by name
@@ -386,4 +387,24 @@ func is_null_builtin(args ...object.Object) object.Object {
 		return object.TRUE
 	}
 	return object.FALSE
+}
+
+func error_builtin(args ...object.Object) object.Object {
+	if len(args) != 1 {
+		return object.NewError("wrong number of arguments. got=%d, want=1", len(args))
+	}
+
+	// Convert argument to string for error message
+	var message string
+	switch arg := args[0].(type) {
+	case *object.String:
+		message = arg.Value
+	default:
+		message = arg.String()
+	}
+
+	// Create a user-created error
+	err := object.NewError("%s", message)
+	err.IsUserCreated = true
+	return err
 }

@@ -63,14 +63,47 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.VarStatement:
 		val := Eval(node.Value, env)
-		if is_error(val) {
+		// Propagate runtime errors immediately, but allow user-created errors to be assigned
+		if is_runtime_error(val) {
 			return val
 		}
-		if node.IsConstant {
-			env.SetConstant(node.Name.Value, val)
-		} else {
-			env.Set(node.Name.Value, val)
+
+		// Single assignment (backward compatible)
+		if len(node.Names) == 1 {
+			if node.IsConstant {
+				env.SetConstant(node.Names[0].Value, val)
+			} else {
+				env.Set(node.Names[0].Value, val)
+			}
+			return val
 		}
+
+		// Multiple assignment (destructuring)
+		var values []object.Object
+
+		// Check if value is MultiValue
+		if mv, ok := val.(*object.MultiValue); ok {
+			values = mv.Values
+		} else {
+			// Single value assigned to multiple variables - error
+			return object.NewError("cannot assign single value to %d variables", len(node.Names))
+		}
+
+		// Check counts match
+		if len(values) != len(node.Names) {
+			return object.NewError("assignment count mismatch: %d values for %d variables",
+				len(values), len(node.Names))
+		}
+
+		// Assign each value to corresponding variable
+		for i, name := range node.Names {
+			if node.IsConstant {
+				env.SetConstant(name.Value, values[i])
+			} else {
+				env.Set(name.Value, values[i])
+			}
+		}
+
 		return val
 
 	case *ast.BlockStatement:
@@ -118,6 +151,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.BooleanLiteral:
 		return eval_boolean_literal(node)
+
+	case *ast.NilLiteral:
+		return object.NULL
 
 	case *ast.Identifier:
 		return eval_identifier(node, env)
@@ -363,7 +399,11 @@ func eval_program(stmts []ast.Statement, env *object.Environment) object.Object 
 		case *object.ReturnValue:
 			return result.Value
 		case *object.Error:
-			return result
+			// Only propagate runtime errors immediately
+			// User-created errors (via error() builtin) are treated as regular values
+			if !result.IsUserCreated {
+				return result
+			}
 		}
 	}
 
@@ -379,8 +419,14 @@ func eval_block_statement(block *ast.BlockStatement, env *object.Environment) ob
 
 		if result != nil {
 			rt := result.Type()
-			if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ || rt == object.BREAK_OBJ {
+			if rt == object.RETURN_VALUE_OBJ || rt == object.BREAK_OBJ {
 				return result
+			}
+			// Propagate runtime errors immediately, but not user-created errors
+			if rt == object.ERROR_OBJ {
+				if err, ok := result.(*object.Error); ok && !err.IsUserCreated {
+					return result
+				}
 			}
 		}
 	}
@@ -410,8 +456,9 @@ func eval_interpolated_string(node *ast.InterpolatedString, env *object.Environm
 		// Evaluate each part
 		evaluated := Eval(part, env)
 
-		// Check for errors
-		if is_error(evaluated) {
+		// Propagate runtime errors immediately
+		// User-created errors can be interpolated into strings
+		if is_runtime_error(evaluated) {
 			return evaluated
 		}
 
@@ -475,7 +522,8 @@ func eval_expressions(exps []ast.Expression, env *object.Environment) []object.O
 
 	for _, e := range exps {
 		evaluated := Eval(e, env)
-		if is_error(evaluated) {
+		// Propagate runtime errors immediately, but allow user-created errors as function arguments
+		if is_runtime_error(evaluated) {
 			return []object.Object{evaluated}
 		}
 		result = append(result, evaluated)
@@ -717,6 +765,15 @@ func native_bool(input bool) *object.Boolean {
 func is_error(obj object.Object) bool {
 	if obj != nil {
 		return obj.Type() == object.ERROR_OBJ
+	}
+	return false
+}
+
+// is_runtime_error checks if an error should propagate immediately (runtime errors)
+// Returns false for user-created errors (via error() builtin) which should be treated as values
+func is_runtime_error(obj object.Object) bool {
+	if err, ok := obj.(*object.Error); ok {
+		return !err.IsUserCreated
 	}
 	return false
 }
@@ -1066,16 +1123,36 @@ func eval_fn_statement(node *ast.FnStatement, env *object.Environment) object.Ob
 }
 
 func eval_return_statement(node *ast.ReturnStatement, env *object.Environment) object.Object {
-	var val object.Object = object.NULL
-
-	if node.Value != nil {
-		val = Eval(node.Value, env)
-		if is_error(val) {
-			return val
-		}
+	// No return values - return null
+	if len(node.Values) == 0 {
+		return &object.ReturnValue{Value: object.NULL}
 	}
 
-	return &object.ReturnValue{Value: val}
+	// Single return value (backward compatible)
+	if len(node.Values) == 1 {
+		val := Eval(node.Values[0], env)
+		// Propagate runtime errors immediately
+		if is_runtime_error(val) {
+			return val
+		}
+		return &object.ReturnValue{Value: val}
+	}
+
+	// Multiple return values
+	// For Go-style error handling, allow user-created Error objects to be returned as values
+	// But propagate runtime errors immediately
+	values := []object.Object{}
+	for _, expr := range node.Values {
+		val := Eval(expr, env)
+		if is_runtime_error(val) {
+			return val
+		}
+		values = append(values, val)
+	}
+
+	return &object.ReturnValue{
+		Value: &object.MultiValue{Values: values},
+	}
 }
 
 func eval_function_literal(node *ast.FunctionLiteral, env *object.Environment) object.Object {
@@ -1099,7 +1176,8 @@ func eval_call_expression(node *ast.CallExpression, env *object.Environment) obj
 	}
 
 	args := eval_expressions(node.Arguments, env)
-	if len(args) == 1 && is_error(args[0]) {
+	// Propagate runtime errors immediately, but allow user-created errors as arguments
+	if len(args) == 1 && is_runtime_error(args[0]) {
 		return args[0]
 	}
 

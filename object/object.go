@@ -30,6 +30,7 @@ const (
 	// Control flow
 	RETURN_VALUE_OBJ = "RETURN_VALUE"
 	BREAK_OBJ        = "BREAK"
+	MULTI_VALUE_OBJ  = "MULTI_VALUE"
 
 	// Testing types
 	TEST_RESULT_OBJ = "TEST_RESULT"
@@ -140,7 +141,8 @@ func (n *Null) String() string   { return "null" }
 
 // Error represents an error object
 type Error struct {
-	Message string
+	Message       string
+	IsUserCreated bool // True if created via error() builtin, false if runtime error
 }
 
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
@@ -163,6 +165,21 @@ type Break struct {
 func (b *Break) Type() ObjectType { return BREAK_OBJ }
 func (b *Break) Inspect() string  { return "break" }
 func (b *Break) String() string   { return "break" }
+
+// MultiValue represents multiple return values
+type MultiValue struct {
+	Values []Object
+}
+
+func (mv *MultiValue) Type() ObjectType { return MULTI_VALUE_OBJ }
+func (mv *MultiValue) Inspect() string {
+	var values []string
+	for _, v := range mv.Values {
+		values = append(values, v.Inspect())
+	}
+	return fmt.Sprintf("(%s)", strings.Join(values, ", "))
+}
+func (mv *MultiValue) String() string { return mv.Inspect() }
 
 // Global constants for common values
 var (

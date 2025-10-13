@@ -532,8 +532,14 @@ func testVarStatement(t *testing.T, s ast.Statement, name string, isConstant boo
 		return false
 	}
 
-	if varStmt.Name.Value != name {
-		t.Errorf("varStmt.Name.Value not '%s'. got=%s", name, varStmt.Name.Value)
+	// Check first name (backward compatible with single variable)
+	if len(varStmt.Names) == 0 {
+		t.Errorf("varStmt.Names is empty")
+		return false
+	}
+
+	if varStmt.Names[0].Value != name {
+		t.Errorf("varStmt.Names[0].Value not '%s'. got=%s", name, varStmt.Names[0].Value)
 		return false
 	}
 
@@ -780,7 +786,13 @@ func TestReturnStatements(t *testing.T) {
 			t.Fatalf("stmt not *ast.ReturnStatement. got=%T", program.Statements[0])
 		}
 
-		if !testLiteralExpression(t, stmt.Value, tt.expectedValue) {
+		// Check first value (backward compatible with single return)
+		if len(stmt.Values) == 0 {
+			t.Fatalf("stmt.Values is empty")
+			return
+		}
+
+		if !testLiteralExpression(t, stmt.Values[0], tt.expectedValue) {
 			return
 		}
 	}
