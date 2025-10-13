@@ -37,7 +37,7 @@ func (p *Program) String() string {
 
 // Variable Declaration
 type VarStatement struct {
-	Name       *Identifier
+	Names      []*Identifier // support multiple variable assignment (backward compatible with single variable)
 	Type       *TypeAnnotation
 	Value      Expression
 	IsConstant bool
@@ -51,7 +51,12 @@ func (vs *VarStatement) String() string {
 	} else {
 		out.WriteString("var ")
 	}
-	out.WriteString(vs.Name.String())
+	// Handle multiple names
+	names := []string{}
+	for _, name := range vs.Names {
+		names = append(names, name.String())
+	}
+	out.WriteString(strings.Join(names, ", "))
 	if vs.Type != nil {
 		out.WriteString(": ")
 		out.WriteString(vs.Type.String())
@@ -303,16 +308,20 @@ func (cs *CheckStatement) String() string {
 
 // Return Statement
 type ReturnStatement struct {
-	Value Expression // optional return value
+	Values []Expression // support multiple return values (backward compatible with single value)
 }
 
 func (rs *ReturnStatement) statementNode() {}
 func (rs *ReturnStatement) String() string {
 	var out bytes.Buffer
 	out.WriteString("return")
-	if rs.Value != nil {
+	if len(rs.Values) > 0 {
 		out.WriteString(" ")
-		out.WriteString(rs.Value.String())
+		values := []string{}
+		for _, v := range rs.Values {
+			values = append(values, v.String())
+		}
+		out.WriteString(strings.Join(values, ", "))
 	}
 	return out.String()
 }
@@ -488,6 +497,14 @@ func (bl *BooleanLiteral) String() string {
 		return "true"
 	}
 	return "false"
+}
+
+// Nil Literal
+type NilLiteral struct{}
+
+func (nl *NilLiteral) expressionNode() {}
+func (nl *NilLiteral) String() string {
+	return "nil"
 }
 
 // Array Literal

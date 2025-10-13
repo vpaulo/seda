@@ -89,6 +89,7 @@ const (
 	BREAK    // break
 	TRUE     // true
 	FALSE    // false
+	NIL      // nil
 
 	// Type keywords
 	NUMBER_TYPE  // number
@@ -248,6 +249,8 @@ func (t TokenType) String() string {
 		return "true"
 	case FALSE:
 		return "false"
+	case NIL:
+		return "nil"
 	case NUMBER_TYPE:
 		return "number"
 	case STRING_TYPE:
@@ -310,6 +313,7 @@ var keywords = map[string]TokenType{
 	"break":    BREAK,
 	"true":     TRUE,
 	"false":    FALSE,
+	"nil":      NIL,
 	"number":   NUMBER_TYPE,
 	"string":   STRING_TYPE,
 	"boolean":  BOOLEAN_TYPE,

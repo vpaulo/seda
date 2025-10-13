@@ -80,6 +80,7 @@ func New(l *lexer.Lexer) *Parser {
 	parser.register_prefix(lexer.STRING, parser.parse_string_literal)
 	parser.register_prefix(lexer.TRUE, parser.parse_boolean_literal)
 	parser.register_prefix(lexer.FALSE, parser.parse_boolean_literal)
+	parser.register_prefix(lexer.NIL, parser.parse_nil_literal)
 	parser.register_prefix(lexer.MINUS, parser.parse_prefix_expression)
 	parser.register_prefix(lexer.NOT, parser.parse_prefix_expression)
 	parser.register_prefix(lexer.LPAREN, parser.parse_grouped_expression)
@@ -224,13 +225,23 @@ func (parser *Parser) parse_statement() ast.Statement {
 
 // parse_var_statement parses variable declarations
 func (parser *Parser) parse_var_statement(is_constant bool) *ast.VarStatement {
-	stmt := &ast.VarStatement{IsConstant: is_constant}
+	stmt := &ast.VarStatement{IsConstant: is_constant, Names: []*ast.Identifier{}}
 
 	if !parser.expect_peek(lexer.IDENT) {
 		return nil
 	}
 
-	stmt.Name = &ast.Identifier{Value: parser.current_token.Literal}
+	// Parse first variable name
+	stmt.Names = append(stmt.Names, &ast.Identifier{Value: parser.current_token.Literal})
+
+	// Parse additional comma-separated variable names
+	for parser.peek_token.Type == lexer.COMMA {
+		parser.next_token() // skip comma
+		if !parser.expect_peek(lexer.IDENT) {
+			return nil
+		}
+		stmt.Names = append(stmt.Names, &ast.Identifier{Value: parser.current_token.Literal})
+	}
 
 	// Optional type annotation
 	if parser.peek_token.Type == lexer.COLON {
@@ -251,12 +262,20 @@ func (parser *Parser) parse_var_statement(is_constant bool) *ast.VarStatement {
 
 // parse_return_statement parses return statements
 func (parser *Parser) parse_return_statement() *ast.ReturnStatement {
-	stmt := &ast.ReturnStatement{}
+	stmt := &ast.ReturnStatement{Values: []ast.Expression{}}
 
 	// Check if there's a return value
 	if parser.peek_token.Type != lexer.SEMICOLON && parser.peek_token.Type != lexer.END && parser.peek_token.Type != lexer.EOF {
 		parser.next_token()
-		stmt.Value = parser.parse_expression(LOWEST)
+		// Parse first value
+		stmt.Values = append(stmt.Values, parser.parse_expression(LOWEST))
+
+		// Parse additional comma-separated values
+		for parser.peek_token.Type == lexer.COMMA {
+			parser.next_token() // skip comma
+			parser.next_token()
+			stmt.Values = append(stmt.Values, parser.parse_expression(LOWEST))
+		}
 	}
 
 	return stmt
@@ -936,6 +955,10 @@ func (parser *Parser) parse_interpolated_string(str_value string) ast.Expression
 
 func (parser *Parser) parse_boolean_literal() ast.Expression {
 	return &ast.BooleanLiteral{Value: parser.current_token.Type == lexer.TRUE}
+}
+
+func (parser *Parser) parse_nil_literal() ast.Expression {
+	return &ast.NilLiteral{}
 }
 
 func (parser *Parser) parse_self_expression() ast.Expression {
