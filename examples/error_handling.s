@@ -19,7 +19,7 @@ check "Using multiple return values with error case" ::
   var result, err = divide(10, 0)
 
   result is nil
-  "#{err}" is "ERROR: division by zero"
+  err.to_string is "division by zero"
 end
 
 # Function that propagates errors
@@ -42,7 +42,7 @@ check "Function that propagates errors, fail case" ::
   var result, err = safe_divide(20, 0)
 
   result is nil
-  "#{err}" is "ERROR: division by zero"
+  err.to_string is "division by zero"
 end
 
 println("✓ All error handling tests passed!")

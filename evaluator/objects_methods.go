@@ -20,6 +20,8 @@ func call_object_method(receiver object.Object, method_name string, args []objec
 		return call_map_method(obj, method_name, args)
 	case *object.Boolean:
 		return call_boolean_method(obj, method_name, args)
+	case *object.Error:
+		return call_error_method(obj, method_name, args)
 	default:
 		return object.NewError("method '%s' not found on %s", method_name, receiver.Type())
 	}
@@ -342,6 +344,21 @@ func call_boolean_method(bool *object.Boolean, method_name string, args []object
 	}
 
 	return object.NewError("method '%s' not found on Boolean", method_name)
+}
+
+// Error Methods
+
+func call_error_method(err *object.Error, method_name string, args []object.Object) object.Object {
+	switch method_name {
+	case "to_string":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Error.to_string. got=%d, want=0", len(args))
+		}
+		// Return just the error message without "ERROR: " prefix
+		return &object.String{Value: err.Message}
+	}
+
+	return object.NewError("method '%s' not found on Error", method_name)
 }
 
 // Global Functions (kept as builtin functions for print/println)
