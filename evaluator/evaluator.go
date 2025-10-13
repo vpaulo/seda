@@ -17,6 +17,10 @@ import (
 // Global flag to prevent infinite recursion in where block tests
 var in_where_block_test = false
 
+// Global slice to collect where block test results during test mode
+var where_block_results []*object.TestResult
+var in_test_mode = false
+
 // Global type objects to hold user-defined methods
 var global_array_object *object.Map
 var global_string_object *object.Map
@@ -1195,8 +1199,14 @@ func apply_function(fn object.Object, args []object.Object, callerEnv *object.En
 		if function.WhereBlock != nil && !in_where_block_test {
 			test_result := eval_where_block(function.WhereBlock, extended_env, result, args)
 			if test_result.Failed > 0 {
-				// For now, print test failures but still return the function result
-				fmt.Printf("Function test failures:\n%s\n", test_result.String())
+				// Print test failures during normal execution
+				if !in_test_mode {
+					fmt.Printf("Function test failures:\n%s\n", test_result.String())
+				}
+			}
+			// Collect where block results during test mode
+			if in_test_mode {
+				where_block_results = append(where_block_results, test_result)
 			}
 		}
 
@@ -1439,10 +1449,11 @@ func eval_where_block(where_block *ast.WhereBlock, env *object.Environment, retu
 	defer func() { in_where_block_test = false }()
 
 	result := &object.TestResult{
-		Passed:   0,
-		Failed:   0,
-		Failures: []string{},
-		Label:    "where block",
+		Passed:     0,
+		Failed:     0,
+		Failures:   []string{},
+		Label:      "where block",
+		Assertions: []object.AssertionResult{},
 	}
 
 	// Create a test environment with special variables
@@ -1473,6 +1484,15 @@ func eval_where_block(where_block *ast.WhereBlock, env *object.Environment, retu
 	// Then evaluate assertions
 	for _, assertion := range where_block.Assertions {
 		passed, message := eval_assertion(assertion, test_env)
+
+		// Create assertion result with source code
+		assertionResult := object.AssertionResult{
+			Passed:  passed,
+			Message: message,
+			Source:  assertion.String(), // Use AST string representation as source
+		}
+		result.Assertions = append(result.Assertions, assertionResult)
+
 		if passed {
 			result.Passed++
 		} else {
@@ -1744,7 +1764,13 @@ func eval_raises_assertion(left, right object.Object) (bool, string) {
 // Test Runner functionality
 
 func RunTests(program *ast.Program, env *object.Environment) *object.TestResult {
+	// Enable test mode and reset where block results
+	in_test_mode = true
+	where_block_results = []*object.TestResult{}
+	defer func() { in_test_mode = false }()
+
 	// First, execute the program to set up all variables and functions
+	// This will also execute where blocks and collect their results
 	Eval(program, env)
 
 	// Then collect and run all check blocks
@@ -1774,6 +1800,23 @@ func RunTests(program *ast.Program, env *object.Environment) *object.TestResult 
 				}
 				total_result.Failures = append(total_result.Failures, fmt.Sprintf("[%s] %s", label, failure))
 			}
+		}
+	}
+
+	// Aggregate where block results
+	for _, where_result := range where_block_results {
+		total_result.Passed += where_result.Passed
+		total_result.Failed += where_result.Failed
+
+		// Aggregate assertions from where blocks
+		total_result.Assertions = append(total_result.Assertions, where_result.Assertions...)
+
+		for _, failure := range where_result.Failures {
+			label := where_result.Label
+			if label == "" {
+				label = "unnamed where block"
+			}
+			total_result.Failures = append(total_result.Failures, fmt.Sprintf("[%s] %s", label, failure))
 		}
 	}
 

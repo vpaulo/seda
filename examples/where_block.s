@@ -36,4 +36,14 @@ where ::
   all_passed isTrue
 end
 
+fn add(a, b) ::
+  return a + b
+where ::
+  result is 8
+  arg0 is 3
+  arg1 is 5
+end
+
+add(3,5)
+
 println("✓ All where blocks tests passed!")
