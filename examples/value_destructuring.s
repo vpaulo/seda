@@ -4,6 +4,12 @@ println("Running value destructuring tests...")
 
 fn get_user_info() ::
     return "Alice", 30, "alice@example.com"
+where ::
+  var name, age, email = get_user_info()
+
+  name is "Alice"
+  age is 30
+  email is "alice@example.com"
 end
 
 check "Destructuring multiple return values" ::
