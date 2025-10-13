@@ -525,6 +525,715 @@ func call_array_method(arr *object.Array, method_name string, args []object.Obje
 		rest_elements := make([]object.Object, length-1)
 		copy(rest_elements, arr.Elements[1:])
 		return &object.Array{Elements: rest_elements}
+
+	// Functional operations
+	case "map":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.map. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.map must be FUNCTION, got %s", args[0].Type())
+		}
+
+		result := make([]object.Object, len(arr.Elements))
+		for i, elem := range arr.Elements {
+			mapped := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(mapped) {
+				return mapped
+			}
+			result[i] = mapped
+		}
+		return &object.Array{Elements: result}
+
+	case "filter":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.filter. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.filter must be FUNCTION, got %s", args[0].Type())
+		}
+
+		result := []object.Object{}
+		for _, elem := range arr.Elements {
+			condition := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(condition) {
+				return condition
+			}
+			if is_truthy(condition) {
+				result = append(result, elem)
+			}
+		}
+		return &object.Array{Elements: result}
+
+	case "reduce":
+		if len(args) != 2 {
+			return object.NewError("wrong number of arguments for Array.reduce. got=%d, want=2", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("first argument to Array.reduce must be FUNCTION, got %s", args[0].Type())
+		}
+
+		accumulator := args[1]
+		for _, elem := range arr.Elements {
+			accumulator = apply_function_from_method(fn, []object.Object{accumulator, elem})
+			if is_error(accumulator) {
+				return accumulator
+			}
+		}
+		return accumulator
+
+	case "each":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.each. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.each must be FUNCTION, got %s", args[0].Type())
+		}
+
+		for _, elem := range arr.Elements {
+			result := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(result) {
+				return result
+			}
+		}
+		return object.NULL
+
+	case "map_with_index":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.map_with_index. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.map_with_index must be FUNCTION, got %s", args[0].Type())
+		}
+
+		result := make([]object.Object, len(arr.Elements))
+		for i, elem := range arr.Elements {
+			mapped := apply_function_from_method(fn, []object.Object{elem, &object.Number{Value: float64(i)}})
+			if is_error(mapped) {
+				return mapped
+			}
+			result[i] = mapped
+		}
+		return &object.Array{Elements: result}
+
+	// Finding methods
+	case "find":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.find. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.find must be FUNCTION, got %s", args[0].Type())
+		}
+
+		for _, elem := range arr.Elements {
+			condition := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(condition) {
+				return condition
+			}
+			if is_truthy(condition) {
+				return elem
+			}
+		}
+		return object.NULL
+
+	case "find_index":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.find_index. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.find_index must be FUNCTION, got %s", args[0].Type())
+		}
+
+		for i, elem := range arr.Elements {
+			condition := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(condition) {
+				return condition
+			}
+			if is_truthy(condition) {
+				return &object.Number{Value: float64(i)}
+			}
+		}
+		return &object.Number{Value: -1}
+
+	case "any":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.any. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.any must be FUNCTION, got %s", args[0].Type())
+		}
+
+		for _, elem := range arr.Elements {
+			condition := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(condition) {
+				return condition
+			}
+			if is_truthy(condition) {
+				return object.TRUE
+			}
+		}
+		return object.FALSE
+
+	case "all":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.all. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.all must be FUNCTION, got %s", args[0].Type())
+		}
+
+		for _, elem := range arr.Elements {
+			condition := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(condition) {
+				return condition
+			}
+			if !is_truthy(condition) {
+				return object.FALSE
+			}
+		}
+		return object.TRUE
+
+	case "none":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.none. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.none must be FUNCTION, got %s", args[0].Type())
+		}
+
+		for _, elem := range arr.Elements {
+			condition := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(condition) {
+				return condition
+			}
+			if is_truthy(condition) {
+				return object.FALSE
+			}
+		}
+		return object.TRUE
+
+	case "count":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.count. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.count must be FUNCTION, got %s", args[0].Type())
+		}
+
+		count := 0
+		for _, elem := range arr.Elements {
+			condition := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(condition) {
+				return condition
+			}
+			if is_truthy(condition) {
+				count++
+			}
+		}
+		return &object.Number{Value: float64(count)}
+
+	// Transformation methods
+	case "sort":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.sort. got=%d, want=0", len(args))
+		}
+
+		// Sort mutates the array in place
+		// Simple number sorting for now
+		sorted := make([]object.Object, len(arr.Elements))
+		copy(sorted, arr.Elements)
+
+		// Bubble sort for simplicity
+		for i := 0; i < len(sorted); i++ {
+			for j := i + 1; j < len(sorted); j++ {
+				num1, ok1 := sorted[i].(*object.Number)
+				num2, ok2 := sorted[j].(*object.Number)
+				if ok1 && ok2 && num1.Value > num2.Value {
+					sorted[i], sorted[j] = sorted[j], sorted[i]
+				}
+			}
+		}
+
+		arr.Elements = sorted
+		return arr
+
+	case "sort_by":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.sort_by. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.sort_by must be FUNCTION, got %s", args[0].Type())
+		}
+
+		// Create copy with sort keys
+		type sortPair struct {
+			elem object.Object
+			key  float64
+		}
+
+		pairs := make([]sortPair, len(arr.Elements))
+		for i, elem := range arr.Elements {
+			keyObj := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(keyObj) {
+				return keyObj
+			}
+			keyNum, ok := keyObj.(*object.Number)
+			if !ok {
+				return object.NewError("sort_by function must return NUMBER, got %s", keyObj.Type())
+			}
+			pairs[i] = sortPair{elem: elem, key: keyNum.Value}
+		}
+
+		// Bubble sort
+		for i := 0; i < len(pairs); i++ {
+			for j := i + 1; j < len(pairs); j++ {
+				if pairs[i].key > pairs[j].key {
+					pairs[i], pairs[j] = pairs[j], pairs[i]
+				}
+			}
+		}
+
+		// Extract sorted elements
+		sorted := make([]object.Object, len(pairs))
+		for i, p := range pairs {
+			sorted[i] = p.elem
+		}
+
+		arr.Elements = sorted
+		return arr
+
+	case "reverse":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.reverse. got=%d, want=0", len(args))
+		}
+
+		// Reverse mutates in place
+		for i, j := 0, len(arr.Elements)-1; i < j; i, j = i+1, j-1 {
+			arr.Elements[i], arr.Elements[j] = arr.Elements[j], arr.Elements[i]
+		}
+		return arr
+
+	case "unique":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.unique. got=%d, want=0", len(args))
+		}
+
+		seen := make(map[string]bool)
+		result := []object.Object{}
+
+		for _, elem := range arr.Elements {
+			key := elem.String()
+			if !seen[key] {
+				seen[key] = true
+				result = append(result, elem)
+			}
+		}
+
+		return &object.Array{Elements: result}
+
+	// Slicing/Combining
+	case "slice":
+		if len(args) != 2 {
+			return object.NewError("wrong number of arguments for Array.slice. got=%d, want=2", len(args))
+		}
+
+		start, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("first argument to Array.slice must be NUMBER, got %s", args[0].Type())
+		}
+
+		end, ok := args[1].(*object.Number)
+		if !ok {
+			return object.NewError("second argument to Array.slice must be NUMBER, got %s", args[1].Type())
+		}
+
+		startIdx := int(start.Value)
+		endIdx := int(end.Value)
+
+		if startIdx < 0 || startIdx >= len(arr.Elements) {
+			startIdx = 0
+		}
+		if endIdx < 0 || endIdx > len(arr.Elements) {
+			endIdx = len(arr.Elements)
+		}
+		if endIdx < startIdx {
+			endIdx = startIdx
+		}
+
+		result := make([]object.Object, endIdx-startIdx)
+		copy(result, arr.Elements[startIdx:endIdx])
+		return &object.Array{Elements: result}
+
+	case "take":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.take. got=%d, want=1", len(args))
+		}
+
+		n, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to Array.take must be NUMBER, got %s", args[0].Type())
+		}
+
+		count := int(n.Value)
+		if count < 0 {
+			count = 0
+		}
+		if count > len(arr.Elements) {
+			count = len(arr.Elements)
+		}
+
+		result := make([]object.Object, count)
+		copy(result, arr.Elements[:count])
+		return &object.Array{Elements: result}
+
+	case "drop":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.drop. got=%d, want=1", len(args))
+		}
+
+		n, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to Array.drop must be NUMBER, got %s", args[0].Type())
+		}
+
+		count := int(n.Value)
+		if count < 0 {
+			count = 0
+		}
+		if count > len(arr.Elements) {
+			count = len(arr.Elements)
+		}
+
+		result := make([]object.Object, len(arr.Elements)-count)
+		copy(result, arr.Elements[count:])
+		return &object.Array{Elements: result}
+
+	case "concat":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.concat. got=%d, want=1", len(args))
+		}
+
+		other, ok := args[0].(*object.Array)
+		if !ok {
+			return object.NewError("argument to Array.concat must be ARRAY, got %s", args[0].Type())
+		}
+
+		result := make([]object.Object, len(arr.Elements)+len(other.Elements))
+		copy(result, arr.Elements)
+		copy(result[len(arr.Elements):], other.Elements)
+		return &object.Array{Elements: result}
+
+	// Nested arrays
+	case "flatten":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.flatten. got=%d, want=0", len(args))
+		}
+
+		var flatten func([]object.Object) []object.Object
+		flatten = func(elems []object.Object) []object.Object {
+			result := []object.Object{}
+			for _, elem := range elems {
+				if subArr, ok := elem.(*object.Array); ok {
+					result = append(result, flatten(subArr.Elements)...)
+				} else {
+					result = append(result, elem)
+				}
+			}
+			return result
+		}
+
+		return &object.Array{Elements: flatten(arr.Elements)}
+
+	case "flat_map":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.flat_map. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.flat_map must be FUNCTION, got %s", args[0].Type())
+		}
+
+		result := []object.Object{}
+		for _, elem := range arr.Elements {
+			mapped := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(mapped) {
+				return mapped
+			}
+			if subArr, ok := mapped.(*object.Array); ok {
+				result = append(result, subArr.Elements...)
+			} else {
+				result = append(result, mapped)
+			}
+		}
+		return &object.Array{Elements: result}
+
+	// Membership
+	case "contains":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.contains. got=%d, want=1", len(args))
+		}
+
+		searchKey := args[0].String()
+		for _, elem := range arr.Elements {
+			if elem.String() == searchKey {
+				return object.TRUE
+			}
+		}
+		return object.FALSE
+
+	case "index_of":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.index_of. got=%d, want=1", len(args))
+		}
+
+		searchKey := args[0].String()
+		for i, elem := range arr.Elements {
+			if elem.String() == searchKey {
+				return &object.Number{Value: float64(i)}
+			}
+		}
+		return &object.Number{Value: -1}
+
+	case "last_index_of":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.last_index_of. got=%d, want=1", len(args))
+		}
+
+		searchKey := args[0].String()
+		lastIdx := -1
+		for i, elem := range arr.Elements {
+			if elem.String() == searchKey {
+				lastIdx = i
+			}
+		}
+		return &object.Number{Value: float64(lastIdx)}
+
+	// Conversion
+	case "join":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.join. got=%d, want=1", len(args))
+		}
+
+		separator, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to Array.join must be STRING, got %s", args[0].Type())
+		}
+
+		parts := make([]string, len(arr.Elements))
+		for i, elem := range arr.Elements {
+			parts[i] = elem.String()
+		}
+		return &object.String{Value: strings.Join(parts, separator.Value)}
+
+	// Statistics
+	case "sum":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.sum. got=%d, want=0", len(args))
+		}
+
+		sum := 0.0
+		for _, elem := range arr.Elements {
+			num, ok := elem.(*object.Number)
+			if !ok {
+				return object.NewError("Array.sum requires all elements to be NUMBER, got %s", elem.Type())
+			}
+			sum += num.Value
+		}
+		return &object.Number{Value: sum}
+
+	case "average":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.average. got=%d, want=0", len(args))
+		}
+
+		if len(arr.Elements) == 0 {
+			return object.NewError("cannot compute average of empty array")
+		}
+
+		sum := 0.0
+		for _, elem := range arr.Elements {
+			num, ok := elem.(*object.Number)
+			if !ok {
+				return object.NewError("Array.average requires all elements to be NUMBER, got %s", elem.Type())
+			}
+			sum += num.Value
+		}
+		return &object.Number{Value: sum / float64(len(arr.Elements))}
+
+	case "min":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.min. got=%d, want=0", len(args))
+		}
+
+		if len(arr.Elements) == 0 {
+			return object.NewError("cannot find min of empty array")
+		}
+
+		minNum, ok := arr.Elements[0].(*object.Number)
+		if !ok {
+			return object.NewError("Array.min requires all elements to be NUMBER")
+		}
+
+		minVal := minNum.Value
+		for _, elem := range arr.Elements[1:] {
+			num, ok := elem.(*object.Number)
+			if !ok {
+				return object.NewError("Array.min requires all elements to be NUMBER, got %s", elem.Type())
+			}
+			if num.Value < minVal {
+				minVal = num.Value
+			}
+		}
+		return &object.Number{Value: minVal}
+
+	case "max":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.max. got=%d, want=0", len(args))
+		}
+
+		if len(arr.Elements) == 0 {
+			return object.NewError("cannot find max of empty array")
+		}
+
+		maxNum, ok := arr.Elements[0].(*object.Number)
+		if !ok {
+			return object.NewError("Array.max requires all elements to be NUMBER")
+		}
+
+		maxVal := maxNum.Value
+		for _, elem := range arr.Elements[1:] {
+			num, ok := elem.(*object.Number)
+			if !ok {
+				return object.NewError("Array.max requires all elements to be NUMBER, got %s", elem.Type())
+			}
+			if num.Value > maxVal {
+				maxVal = num.Value
+			}
+		}
+		return &object.Number{Value: maxVal}
+
+	// Grouping
+	case "chunk":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.chunk. got=%d, want=1", len(args))
+		}
+
+		size, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to Array.chunk must be NUMBER, got %s", args[0].Type())
+		}
+
+		chunkSize := int(size.Value)
+		if chunkSize <= 0 {
+			return object.NewError("chunk size must be positive")
+		}
+
+		result := []object.Object{}
+		for i := 0; i < len(arr.Elements); i += chunkSize {
+			end := i + chunkSize
+			if end > len(arr.Elements) {
+				end = len(arr.Elements)
+			}
+			chunk := make([]object.Object, end-i)
+			copy(chunk, arr.Elements[i:end])
+			result = append(result, &object.Array{Elements: chunk})
+		}
+
+		return &object.Array{Elements: result}
+
+	case "partition":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.partition. got=%d, want=1", len(args))
+		}
+
+		fn, ok := args[0].(*object.Function)
+		if !ok {
+			return object.NewError("argument to Array.partition must be FUNCTION, got %s", args[0].Type())
+		}
+
+		trueGroup := []object.Object{}
+		falseGroup := []object.Object{}
+
+		for _, elem := range arr.Elements {
+			condition := apply_function_from_method(fn, []object.Object{elem})
+			if is_error(condition) {
+				return condition
+			}
+			if is_truthy(condition) {
+				trueGroup = append(trueGroup, elem)
+			} else {
+				falseGroup = append(falseGroup, elem)
+			}
+		}
+
+		result := []object.Object{
+			&object.Array{Elements: trueGroup},
+			&object.Array{Elements: falseGroup},
+		}
+		return &object.Array{Elements: result}
+
+	// Array operations
+	case "zip":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Array.zip. got=%d, want=1", len(args))
+		}
+
+		other, ok := args[0].(*object.Array)
+		if !ok {
+			return object.NewError("argument to Array.zip must be ARRAY, got %s", args[0].Type())
+		}
+
+		length := len(arr.Elements)
+		if len(other.Elements) < length {
+			length = len(other.Elements)
+		}
+
+		result := make([]object.Object, length)
+		for i := 0; i < length; i++ {
+			pair := []object.Object{arr.Elements[i], other.Elements[i]}
+			result[i] = &object.Array{Elements: pair}
+		}
+
+		return &object.Array{Elements: result}
+
+	case "compact":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Array.compact. got=%d, want=0", len(args))
+		}
+
+		result := []object.Object{}
+		for _, elem := range arr.Elements {
+			if elem.Type() != object.NULL_OBJ {
+				result = append(result, elem)
+			}
+		}
+
+		return &object.Array{Elements: result}
 	}
 
 	// Check for instance-specific custom properties
