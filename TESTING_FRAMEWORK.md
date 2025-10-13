@@ -54,19 +54,26 @@ array.length is 3
 ```
 
 ### Extended Assertion Types
+1. is - Equality check (e.g., x is 10)
+2. isNot - Inequality check (e.g., x isNot y)
+3. isA - Type checking (e.g., num isA "NUMBER")
+4. contains - Membership check for arrays/strings (e.g., arr contains 3)
+5. isGreater - Numeric greater than (e.g., x isGreater 5)
+6. isLess - Numeric less than (e.g., x isLess 10)
+7. isTrue - Boolean true check (e.g., flag isTrue)
+8. isFalse - Boolean false check (e.g., flag isFalse)
+9. isEmpty - Empty array/string check (e.g., empty_arr isEmpty)
+10. startsWith - String prefix check (e.g., text startsWith "Hello")
+11. endsWith - String suffix check (e.g., filename endsWith ".pdf")
+12. raises - Error/exception check (e.g., (10 / 0) raises "division by zero")
 ```
 # Type checking
 value isA Number
 obj isA CustomType
 
-# Null/undefined checking
-variable isNull
-variable isNotNull
-
 # Comparison assertions
 number isGreater 10
 number isLess 100
-number isBetween 5, 15
 
 # Boolean assertions
 condition isTrue
@@ -75,19 +82,16 @@ condition isFalse
 # Array/Collection assertions
 array contains element
 array isEmpty
-array hasLength 5
 
 # String assertions
 text startsWith "Hello"
 text endsWith "world"
-text matches /pattern/
 
 # Approximate equality (for floating point)
 calculation isCloseTo 3.14159, tolerance: 0.001
 
 # Exception assertions
-expression throws ErrorType
-expression throws "error message"
+expression raises "error message"
 ```
 
 ## Test Execution Model

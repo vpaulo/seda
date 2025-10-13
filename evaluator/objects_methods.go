@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/vpaulo/seda/object"
@@ -296,6 +297,39 @@ func call_number_method(num *object.Number, method_name string, args []object.Ob
 			return object.NewError("wrong number of arguments for Number.to_string. got=%d, want=0", len(args))
 		}
 		return &object.String{Value: fmt.Sprintf("%.10g", num.Value)}
+
+	case "abs":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Number.abs. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: math.Abs(num.Value)}
+
+	case "floor":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Number.floor. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: math.Floor(num.Value)}
+
+	case "ceil":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Number.ceil. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: math.Ceil(num.Value)}
+
+	case "round":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Number.round. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: math.Round(num.Value)}
+
+	case "sqrt":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Number.sqrt. got=%d, want=0", len(args))
+		}
+		if num.Value < 0 {
+			return object.NewError("cannot take square root of negative number")
+		}
+		return &object.Number{Value: math.Sqrt(num.Value)}
 	}
 
 	// Check for instance-specific custom properties
