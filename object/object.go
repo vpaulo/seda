@@ -3,6 +3,7 @@ package object
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/vpaulo/seda/ast"
 )
@@ -15,6 +16,7 @@ const (
 	NUMBER_OBJ  = "NUMBER"
 	STRING_OBJ  = "STRING"
 	BOOLEAN_OBJ = "BOOLEAN"
+	TIME_OBJ    = "TIME"
 
 	// Collection types
 	ARRAY_OBJ = "ARRAY"
@@ -77,6 +79,16 @@ type Boolean struct {
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
 func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
 func (b *Boolean) String() string   { return b.Inspect() }
+
+// Time represents a time/date value
+type Time struct {
+	Value      time.Time
+	Properties map[string]Object // Custom properties/methods
+}
+
+func (t *Time) Type() ObjectType { return TIME_OBJ }
+func (t *Time) Inspect() string  { return t.Value.Format(time.RFC3339) }
+func (t *Time) String() string   { return t.Inspect() }
 
 // Array represents an array of objects
 type Array struct {

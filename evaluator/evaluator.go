@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/vpaulo/seda/ast"
 	"github.com/vpaulo/seda/lexer"
@@ -36,6 +37,7 @@ var global_math_module *object.Map
 var global_file_module *object.Map
 var global_json_module *object.Map
 var global_os_module *object.Map
+var global_time_module *object.Map
 
 func init() {
 	// Initialize the global type objects
@@ -49,6 +51,7 @@ func init() {
 	global_file_module = init_file_module()
 	global_json_module = init_json_module()
 	global_os_module = init_os_module()
+	global_time_module = init_time_module()
 
 	// Set up the evaluator reference for object_methods
 	SetEvaluator(func(node interface{}, env *object.Environment) object.Object {
@@ -530,6 +533,12 @@ func eval_identifier(node *ast.Identifier, env *object.Environment) object.Objec
 				global_os_module = init_os_module()
 			}
 			return global_os_module
+		}
+		if node.Value == "Time" {
+			if global_time_module == nil {
+				global_time_module = init_time_module()
+			}
+			return global_time_module
 		}
 		// Check for global type objects
 		if node.Value == "Array" {
@@ -3269,4 +3278,85 @@ func init_os_module() *object.Map {
 	}
 
 	return os_module
+}
+
+// init_time_module creates and returns the Time module
+func init_time_module() *object.Map {
+	time_module := &object.Map{
+		Pairs: make(map[string]object.MapPair),
+	}
+
+	// Time.now() - returns current time
+	time_module.Pairs["now"] = object.MapPair{
+		Key: &object.String{Value: "now"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("Time.now() takes no arguments, got %d", len(args))
+				}
+				return &object.Time{Value: time.Now()}
+			},
+		},
+	}
+
+	// Time.date(format, dateString) - parses a date string using the given format
+	// Format uses Seda patterns: YYYY, MM, DD, HH, mm, ss
+	// Example: Time.date("DD-MM-YYYY", "20-01-2000")
+	time_module.Pairs["date"] = object.MapPair{
+		Key: &object.String{Value: "date"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 2 {
+					return object.NewError("Time.date() takes 2 arguments (format, dateString), got %d", len(args))
+				}
+
+				// Get format string
+				formatStr, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("Time.date() first argument must be STRING, got %s", args[0].Type())
+				}
+
+				// Get date string
+				dateStr, ok := args[1].(*object.String)
+				if !ok {
+					return object.NewError("Time.date() second argument must be STRING, got %s", args[1].Type())
+				}
+
+				// Convert Seda format to Go format
+				goFormat := convertSedaFormatToGo(formatStr.Value)
+
+				// Parse the date string
+				parsedTime, err := time.Parse(goFormat, dateStr.Value)
+				if err != nil {
+					return object.NewError("Time.date() failed to parse date: %s", err.Error())
+				}
+
+				return &object.Time{Value: parsedTime}
+			},
+		},
+	}
+
+	// Time.unix(seconds) - creates a Time from Unix timestamp (seconds since epoch)
+	time_module.Pairs["unix"] = object.MapPair{
+		Key: &object.String{Value: "unix"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("Time.unix() takes 1 argument (seconds), got %d", len(args))
+				}
+
+				// Get seconds
+				seconds, ok := args[0].(*object.Number)
+				if !ok {
+					return object.NewError("Time.unix() argument must be NUMBER, got %s", args[0].Type())
+				}
+
+				// Create time from Unix timestamp
+				unixTime := time.Unix(int64(seconds.Value), 0)
+				return &object.Time{Value: unixTime}
+			},
+		},
+	}
+
+	return time_module
 }
