@@ -26,6 +26,9 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
+	// Set command line arguments for OS.args()
+	evaluator.SetCommandLineArgs(flag.Args())
+
 	if *help_flag {
 		usage()
 		os.Exit(0)
