@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/vpaulo/seda/object"
 )
@@ -23,6 +24,8 @@ func call_object_method(receiver object.Object, method_name string, args []objec
 		return call_boolean_method(obj, method_name, args)
 	case *object.Error:
 		return call_error_method(obj, method_name, args)
+	case *object.Time:
+		return call_time_method(obj, method_name, args)
 	default:
 		return object.NewError("method '%s' not found on %s", method_name, receiver.Type())
 	}
@@ -1530,4 +1533,182 @@ func error_builtin(args ...object.Object) object.Object {
 	err := object.NewError("%s", message)
 	err.IsUserCreated = true
 	return err
+}
+
+// Time Methods
+
+func call_time_method(t *object.Time, method_name string, args []object.Object) object.Object {
+	switch method_name {
+	// Formatting methods
+	case "format":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Time.format. got=%d, want=1", len(args))
+		}
+		formatStr, ok := args[0].(*object.String)
+		if !ok {
+			return object.NewError("argument to Time.format must be STRING, got %s", args[0].Type())
+		}
+		// Convert Seda format to Go format
+		goFormat := convertSedaFormatToGo(formatStr.Value)
+		return &object.String{Value: t.Value.Format(goFormat)}
+
+	case "to_string":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.to_string. got=%d, want=0", len(args))
+		}
+		return &object.String{Value: t.Value.Format(time.RFC3339)}
+
+	case "unix":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.unix. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.Unix())}
+
+	case "unix_millis":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.unix_millis. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.UnixMilli())}
+
+	// Component methods
+	case "year":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.year. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.Year())}
+
+	case "month":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.month. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.Month())}
+
+	case "day":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.day. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.Day())}
+
+	case "hour":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.hour. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.Hour())}
+
+	case "minute":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.minute. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.Minute())}
+
+	case "second":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.second. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.Second())}
+
+	case "weekday":
+		if len(args) != 0 {
+			return object.NewError("wrong number of arguments for Time.weekday. got=%d, want=0", len(args))
+		}
+		return &object.Number{Value: float64(t.Value.Weekday())}
+
+	// Arithmetic methods (return new Time)
+	case "add_seconds":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Time.add_seconds. got=%d, want=1", len(args))
+		}
+		seconds, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to Time.add_seconds must be NUMBER, got %s", args[0].Type())
+		}
+		duration := time.Duration(seconds.Value) * time.Second
+		return &object.Time{Value: t.Value.Add(duration)}
+
+	case "add_minutes":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Time.add_minutes. got=%d, want=1", len(args))
+		}
+		minutes, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to Time.add_minutes must be NUMBER, got %s", args[0].Type())
+		}
+		duration := time.Duration(minutes.Value) * time.Minute
+		return &object.Time{Value: t.Value.Add(duration)}
+
+	case "add_hours":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Time.add_hours. got=%d, want=1", len(args))
+		}
+		hours, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to Time.add_hours must be NUMBER, got %s", args[0].Type())
+		}
+		duration := time.Duration(hours.Value) * time.Hour
+		return &object.Time{Value: t.Value.Add(duration)}
+
+	case "add_days":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Time.add_days. got=%d, want=1", len(args))
+		}
+		days, ok := args[0].(*object.Number)
+		if !ok {
+			return object.NewError("argument to Time.add_days must be NUMBER, got %s", args[0].Type())
+		}
+		duration := time.Duration(days.Value*24) * time.Hour
+		return &object.Time{Value: t.Value.Add(duration)}
+
+	// Comparison methods
+	case "diff":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Time.diff. got=%d, want=1", len(args))
+		}
+		other, ok := args[0].(*object.Time)
+		if !ok {
+			return object.NewError("argument to Time.diff must be TIME, got %s", args[0].Type())
+		}
+		diff := t.Value.Sub(other.Value)
+		return &object.Number{Value: diff.Seconds()}
+
+	case "is_before":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Time.is_before. got=%d, want=1", len(args))
+		}
+		other, ok := args[0].(*object.Time)
+		if !ok {
+			return object.NewError("argument to Time.is_before must be TIME, got %s", args[0].Type())
+		}
+		if t.Value.Before(other.Value) {
+			return object.TRUE
+		}
+		return object.FALSE
+
+	case "is_after":
+		if len(args) != 1 {
+			return object.NewError("wrong number of arguments for Time.is_after. got=%d, want=1", len(args))
+		}
+		other, ok := args[0].(*object.Time)
+		if !ok {
+			return object.NewError("argument to Time.is_after must be TIME, got %s", args[0].Type())
+		}
+		if t.Value.After(other.Value) {
+			return object.TRUE
+		}
+		return object.FALSE
+	}
+
+	return object.NewError("method '%s' not found on Time", method_name)
+}
+
+// convertSedaFormatToGo converts Seda time format strings to Go time format strings
+func convertSedaFormatToGo(sedaFormat string) string {
+	// Simple conversion for common patterns
+	goFormat := sedaFormat
+	goFormat = strings.ReplaceAll(goFormat, "YYYY", "2006")
+	goFormat = strings.ReplaceAll(goFormat, "MM", "01")
+	goFormat = strings.ReplaceAll(goFormat, "DD", "02")
+	goFormat = strings.ReplaceAll(goFormat, "HH", "15")
+	goFormat = strings.ReplaceAll(goFormat, "mm", "04")
+	goFormat = strings.ReplaceAll(goFormat, "ss", "05")
+	return goFormat
 }
