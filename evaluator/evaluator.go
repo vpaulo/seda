@@ -30,6 +30,7 @@ var global_map_object *object.Map
 
 // Global module objects
 var global_math_module *object.Map
+var global_file_module *object.Map
 
 func init() {
 	// Initialize the global type objects
@@ -40,6 +41,7 @@ func init() {
 
 	// Initialize global modules
 	global_math_module = init_math_module()
+	global_file_module = init_file_module()
 
 	// Set up the evaluator reference for object_methods
 	SetEvaluator(func(node interface{}, env *object.Environment) object.Object {
@@ -503,6 +505,12 @@ func eval_identifier(node *ast.Identifier, env *object.Environment) object.Objec
 				global_math_module = init_math_module()
 			}
 			return global_math_module
+		}
+		if node.Value == "File" {
+			if global_file_module == nil {
+				global_file_module = init_file_module()
+			}
+			return global_file_module
 		}
 		// Check for global type objects
 		if node.Value == "Array" {
@@ -2259,4 +2267,510 @@ func math_unary_builtin(fn func(float64) float64, name string) func(...object.Ob
 		}
 		return &object.Number{Value: fn(num.Value)}
 	}
+}
+
+// init_file_module initializes the File module with all file and directory operations
+func init_file_module() *object.Map {
+	file_module := &object.Map{Pairs: make(map[string]object.MapPair)}
+
+	// File.read(path) - read file contents, returns (content, error)
+	file_module.Pairs["read"] = object.MapPair{
+		Key: &object.String{Value: "read"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.read. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.read must be STRING, got %s", args[0].Type())
+				}
+
+				content, err := os.ReadFile(path.Value)
+				if err != nil {
+					// Return (nil, error)
+					user_error := &object.Error{Message: err.Error(), IsUserCreated: true}
+					return &object.MultiValue{Values: []object.Object{object.NULL, user_error}}
+				}
+
+				// Return (content, nil)
+				return &object.MultiValue{Values: []object.Object{
+					&object.String{Value: string(content)},
+					object.NULL,
+				}}
+			},
+		},
+	}
+
+	// File.read_lines(path) - read file as array of lines, returns (lines, error)
+	file_module.Pairs["read_lines"] = object.MapPair{
+		Key: &object.String{Value: "read_lines"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.read_lines. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.read_lines must be STRING, got %s", args[0].Type())
+				}
+
+				content, err := os.ReadFile(path.Value)
+				if err != nil {
+					// Return (nil, error)
+					user_error := &object.Error{Message: err.Error(), IsUserCreated: true}
+					return &object.MultiValue{Values: []object.Object{object.NULL, user_error}}
+				}
+
+				// Split content into lines
+				lines := strings.Split(string(content), "\n")
+				elements := make([]object.Object, len(lines))
+				for i, line := range lines {
+					elements[i] = &object.String{Value: line}
+				}
+
+				// Return (lines_array, nil)
+				return &object.MultiValue{Values: []object.Object{
+					&object.Array{Elements: elements},
+					object.NULL,
+				}}
+			},
+		},
+	}
+
+	// File.write(path, content) - write content to file, returns error or nil
+	file_module.Pairs["write"] = object.MapPair{
+		Key: &object.String{Value: "write"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 2 {
+					return object.NewError("wrong number of arguments for File.write. got=%d, want=2", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("first argument to File.write must be STRING, got %s", args[0].Type())
+				}
+				content, ok := args[1].(*object.String)
+				if !ok {
+					return object.NewError("second argument to File.write must be STRING, got %s", args[1].Type())
+				}
+
+				err := os.WriteFile(path.Value, []byte(content.Value), 0644)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// File.append(path, content) - append content to file, returns error or nil
+	file_module.Pairs["append"] = object.MapPair{
+		Key: &object.String{Value: "append"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 2 {
+					return object.NewError("wrong number of arguments for File.append. got=%d, want=2", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("first argument to File.append must be STRING, got %s", args[0].Type())
+				}
+				content, ok := args[1].(*object.String)
+				if !ok {
+					return object.NewError("second argument to File.append must be STRING, got %s", args[1].Type())
+				}
+
+				f, err := os.OpenFile(path.Value, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+				defer f.Close()
+
+				if _, err := f.WriteString(content.Value); err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// File.delete(path) - delete file, returns error or nil
+	file_module.Pairs["delete"] = object.MapPair{
+		Key: &object.String{Value: "delete"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.delete. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.delete must be STRING, got %s", args[0].Type())
+				}
+
+				err := os.Remove(path.Value)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// File.exists(path) - check if file or directory exists
+	file_module.Pairs["exists"] = object.MapPair{
+		Key: &object.String{Value: "exists"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.exists. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.exists must be STRING, got %s", args[0].Type())
+				}
+
+				_, err := os.Stat(path.Value)
+				if err == nil {
+					return object.TRUE
+				}
+				if os.IsNotExist(err) {
+					return object.FALSE
+				}
+				// Other error occurred
+				return object.FALSE
+			},
+		},
+	}
+
+	// File.size(path) - get file size in bytes, returns (size, error)
+	file_module.Pairs["size"] = object.MapPair{
+		Key: &object.String{Value: "size"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.size. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.size must be STRING, got %s", args[0].Type())
+				}
+
+				info, err := os.Stat(path.Value)
+				if err != nil {
+					user_error := &object.Error{Message: err.Error(), IsUserCreated: true}
+					return &object.MultiValue{Values: []object.Object{object.NULL, user_error}}
+				}
+
+				return &object.MultiValue{Values: []object.Object{
+					&object.Number{Value: float64(info.Size())},
+					object.NULL,
+				}}
+			},
+		},
+	}
+
+	// File.is_file(path) - check if path is a file
+	file_module.Pairs["is_file"] = object.MapPair{
+		Key: &object.String{Value: "is_file"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.is_file. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.is_file must be STRING, got %s", args[0].Type())
+				}
+
+				info, err := os.Stat(path.Value)
+				if err != nil {
+					return object.FALSE
+				}
+
+				if info.IsDir() {
+					return object.FALSE
+				}
+				return object.TRUE
+			},
+		},
+	}
+
+	// File.is_dir(path) - check if path is a directory
+	file_module.Pairs["is_dir"] = object.MapPair{
+		Key: &object.String{Value: "is_dir"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.is_dir. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.is_dir must be STRING, got %s", args[0].Type())
+				}
+
+				info, err := os.Stat(path.Value)
+				if err != nil {
+					return object.FALSE
+				}
+
+				if info.IsDir() {
+					return object.TRUE
+				}
+				return object.FALSE
+			},
+		},
+	}
+
+	// File.list_dir(path) - list directory contents, returns (files_array, error)
+	file_module.Pairs["list_dir"] = object.MapPair{
+		Key: &object.String{Value: "list_dir"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.list_dir. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.list_dir must be STRING, got %s", args[0].Type())
+				}
+
+				entries, err := os.ReadDir(path.Value)
+				if err != nil {
+					user_error := &object.Error{Message: err.Error(), IsUserCreated: true}
+					return &object.MultiValue{Values: []object.Object{object.NULL, user_error}}
+				}
+
+				elements := make([]object.Object, len(entries))
+				for i, entry := range entries {
+					elements[i] = &object.String{Value: entry.Name()}
+				}
+
+				return &object.MultiValue{Values: []object.Object{
+					&object.Array{Elements: elements},
+					object.NULL,
+				}}
+			},
+		},
+	}
+
+	// File.mkdir(path) - create directory, returns error or nil
+	file_module.Pairs["mkdir"] = object.MapPair{
+		Key: &object.String{Value: "mkdir"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.mkdir. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.mkdir must be STRING, got %s", args[0].Type())
+				}
+
+				err := os.Mkdir(path.Value, 0755)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// File.mkdir_all(path) - create directory and all parent directories, returns error or nil
+	file_module.Pairs["mkdir_all"] = object.MapPair{
+		Key: &object.String{Value: "mkdir_all"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.mkdir_all. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.mkdir_all must be STRING, got %s", args[0].Type())
+				}
+
+				err := os.MkdirAll(path.Value, 0755)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// File.remove_dir(path) - remove directory, returns error or nil
+	file_module.Pairs["remove_dir"] = object.MapPair{
+		Key: &object.String{Value: "remove_dir"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.remove_dir. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.remove_dir must be STRING, got %s", args[0].Type())
+				}
+
+				err := os.RemoveAll(path.Value)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// File.join(...paths) - join path segments
+	file_module.Pairs["join"] = object.MapPair{
+		Key: &object.String{Value: "join"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) == 0 {
+					return object.NewError("File.join requires at least one argument")
+				}
+
+				paths := make([]string, len(args))
+				for i, arg := range args {
+					str, ok := arg.(*object.String)
+					if !ok {
+						return object.NewError("argument %d to File.join must be STRING, got %s", i, arg.Type())
+					}
+					paths[i] = str.Value
+				}
+
+				result := filepath.Join(paths...)
+				return &object.String{Value: result}
+			},
+		},
+	}
+
+	// File.basename(path) - get base name of path
+	file_module.Pairs["basename"] = object.MapPair{
+		Key: &object.String{Value: "basename"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.basename. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.basename must be STRING, got %s", args[0].Type())
+				}
+
+				result := filepath.Base(path.Value)
+				return &object.String{Value: result}
+			},
+		},
+	}
+
+	// File.dirname(path) - get directory name of path
+	file_module.Pairs["dirname"] = object.MapPair{
+		Key: &object.String{Value: "dirname"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.dirname. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.dirname must be STRING, got %s", args[0].Type())
+				}
+
+				result := filepath.Dir(path.Value)
+				return &object.String{Value: result}
+			},
+		},
+	}
+
+	// File.extname(path) - get file extension
+	file_module.Pairs["extname"] = object.MapPair{
+		Key: &object.String{Value: "extname"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.extname. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.extname must be STRING, got %s", args[0].Type())
+				}
+
+				result := filepath.Ext(path.Value)
+				return &object.String{Value: result}
+			},
+		},
+	}
+
+	// File.absolute_path(path) - get absolute path
+	file_module.Pairs["absolute_path"] = object.MapPair{
+		Key: &object.String{Value: "absolute_path"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.absolute_path. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.absolute_path must be STRING, got %s", args[0].Type())
+				}
+
+				result, err := filepath.Abs(path.Value)
+				if err != nil {
+					return object.NewError("failed to get absolute path: %s", err.Error())
+				}
+
+				return &object.String{Value: result}
+			},
+		},
+	}
+
+	// File.cwd() - get current working directory
+	file_module.Pairs["cwd"] = object.MapPair{
+		Key: &object.String{Value: "cwd"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for File.cwd. got=%d, want=0", len(args))
+				}
+
+				result, err := os.Getwd()
+				if err != nil {
+					return object.NewError("failed to get current directory: %s", err.Error())
+				}
+
+				return &object.String{Value: result}
+			},
+		},
+	}
+
+	// File.chdir(path) - change current working directory
+	file_module.Pairs["chdir"] = object.MapPair{
+		Key: &object.String{Value: "chdir"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for File.chdir. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to File.chdir must be STRING, got %s", args[0].Type())
+				}
+
+				err := os.Chdir(path.Value)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	return file_module
 }
