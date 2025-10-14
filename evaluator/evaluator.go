@@ -1,6 +1,7 @@
 package evaluator
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
@@ -31,6 +32,7 @@ var global_map_object *object.Map
 // Global module objects
 var global_math_module *object.Map
 var global_file_module *object.Map
+var global_json_module *object.Map
 
 func init() {
 	// Initialize the global type objects
@@ -42,6 +44,7 @@ func init() {
 	// Initialize global modules
 	global_math_module = init_math_module()
 	global_file_module = init_file_module()
+	global_json_module = init_json_module()
 
 	// Set up the evaluator reference for object_methods
 	SetEvaluator(func(node interface{}, env *object.Environment) object.Object {
@@ -511,6 +514,12 @@ func eval_identifier(node *ast.Identifier, env *object.Environment) object.Objec
 				global_file_module = init_file_module()
 			}
 			return global_file_module
+		}
+		if node.Value == "JSON" {
+			if global_json_module == nil {
+				global_json_module = init_json_module()
+			}
+			return global_json_module
 		}
 		// Check for global type objects
 		if node.Value == "Array" {
@@ -2773,4 +2782,143 @@ func init_file_module() *object.Map {
 	}
 
 	return file_module
+}
+
+// init_json_module creates and returns the JSON module with parse and stringify functions
+func init_json_module() *object.Map {
+	json_module := &object.Map{Pairs: make(map[string]object.MapPair)}
+
+	// JSON.parse(json_string) - parse JSON string to object
+	json_module.Pairs["parse"] = object.MapPair{
+		Key: &object.String{Value: "parse"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for JSON.parse. got=%d, want=1", len(args))
+				}
+				json_str, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to JSON.parse must be STRING, got %s", args[0].Type())
+				}
+
+				// Parse JSON into interface{}
+				var data interface{}
+				err := json.Unmarshal([]byte(json_str.Value), &data)
+				if err != nil {
+					user_error := &object.Error{Message: fmt.Sprintf("invalid JSON: %s", err.Error()), IsUserCreated: true}
+					return &object.MultiValue{Values: []object.Object{object.NULL, user_error}}
+				}
+
+				// Convert Go interface{} to Seda object
+				result := convert_json_to_object(data)
+				return &object.MultiValue{Values: []object.Object{result, object.NULL}}
+			},
+		},
+	}
+
+	// JSON.stringify(obj, indent?) - convert object to JSON string
+	json_module.Pairs["stringify"] = object.MapPair{
+		Key: &object.String{Value: "stringify"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) < 1 || len(args) > 2 {
+					return object.NewError("wrong number of arguments for JSON.stringify. got=%d, want=1 or 2", len(args))
+				}
+
+				// Convert Seda object to Go interface{}
+				data := convert_object_to_json(args[0])
+
+				var json_bytes []byte
+				var err error
+
+				// Check for optional indent parameter
+				if len(args) == 2 {
+					indent_obj, ok := args[1].(*object.Number)
+					if !ok {
+						return object.NewError("second argument to JSON.stringify must be NUMBER, got %s", args[1].Type())
+					}
+					indent_size := int(indent_obj.Value)
+					indent_str := strings.Repeat(" ", indent_size)
+					json_bytes, err = json.MarshalIndent(data, "", indent_str)
+				} else {
+					json_bytes, err = json.Marshal(data)
+				}
+
+				if err != nil {
+					return object.NewError("failed to stringify object: %s", err.Error())
+				}
+
+				return &object.String{Value: string(json_bytes)}
+			},
+		},
+	}
+
+	return json_module
+}
+
+// convert_json_to_object converts a Go interface{} (from json.Unmarshal) to a Seda object
+func convert_json_to_object(data interface{}) object.Object {
+	switch v := data.(type) {
+	case nil:
+		return object.NULL
+	case bool:
+		if v {
+			return object.TRUE
+		}
+		return object.FALSE
+	case float64:
+		return &object.Number{Value: v}
+	case string:
+		return &object.String{Value: v}
+	case []interface{}:
+		// Convert to Seda array
+		elements := make([]object.Object, len(v))
+		for i, elem := range v {
+			elements[i] = convert_json_to_object(elem)
+		}
+		return &object.Array{Elements: elements}
+	case map[string]interface{}:
+		// Convert to Seda Map
+		pairs := make(map[string]object.MapPair)
+		for key, value := range v {
+			pairs[key] = object.MapPair{
+				Key:   &object.String{Value: key},
+				Value: convert_json_to_object(value),
+			}
+		}
+		return &object.Map{Pairs: pairs}
+	default:
+		return object.NewError("unsupported JSON type: %T", v)
+	}
+}
+
+// convert_object_to_json converts a Seda object to a Go interface{} (for json.Marshal)
+func convert_object_to_json(obj object.Object) interface{} {
+	switch v := obj.(type) {
+	case *object.Null:
+		return nil
+	case *object.Boolean:
+		return v.Value
+	case *object.Number:
+		return v.Value
+	case *object.String:
+		return v.Value
+	case *object.Array:
+		// Convert Seda array to Go slice
+		result := make([]interface{}, len(v.Elements))
+		for i, elem := range v.Elements {
+			result[i] = convert_object_to_json(elem)
+		}
+		return result
+	case *object.Map:
+		// Convert Seda Map to Go map
+		result := make(map[string]interface{})
+		for key, pair := range v.Pairs {
+			result[key] = convert_object_to_json(pair.Value)
+		}
+		return result
+	default:
+		// For unsupported types, convert to string representation
+		return obj.Inspect()
+	}
 }
