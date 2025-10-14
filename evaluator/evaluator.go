@@ -6,7 +6,9 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/vpaulo/seda/ast"
@@ -33,6 +35,7 @@ var global_map_object *object.Map
 var global_math_module *object.Map
 var global_file_module *object.Map
 var global_json_module *object.Map
+var global_os_module *object.Map
 
 func init() {
 	// Initialize the global type objects
@@ -45,6 +48,7 @@ func init() {
 	global_math_module = init_math_module()
 	global_file_module = init_file_module()
 	global_json_module = init_json_module()
+	global_os_module = init_os_module()
 
 	// Set up the evaluator reference for object_methods
 	SetEvaluator(func(node interface{}, env *object.Environment) object.Object {
@@ -520,6 +524,12 @@ func eval_identifier(node *ast.Identifier, env *object.Environment) object.Objec
 				global_json_module = init_json_module()
 			}
 			return global_json_module
+		}
+		if node.Value == "OS" {
+			if global_os_module == nil {
+				global_os_module = init_os_module()
+			}
+			return global_os_module
 		}
 		// Check for global type objects
 		if node.Value == "Array" {
@@ -2921,4 +2931,342 @@ func convert_object_to_json(obj object.Object) interface{} {
 		// For unsupported types, convert to string representation
 		return obj.Inspect()
 	}
+}
+
+// Global variable to store command line arguments
+var command_line_args []string
+
+// SetCommandLineArgs sets the command line arguments for OS.args()
+func SetCommandLineArgs(args []string) {
+	command_line_args = args
+}
+
+// init_os_module creates and returns the OS module with environment, process, and system functions
+func init_os_module() *object.Map {
+	os_module := &object.Map{Pairs: make(map[string]object.MapPair)}
+
+	// OS.getenv(name) - get environment variable
+	os_module.Pairs["getenv"] = object.MapPair{
+		Key: &object.String{Value: "getenv"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for OS.getenv. got=%d, want=1", len(args))
+				}
+				name, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to OS.getenv must be STRING, got %s", args[0].Type())
+				}
+
+				value := os.Getenv(name.Value)
+				return &object.String{Value: value}
+			},
+		},
+	}
+
+	// OS.setenv(name, value) - set environment variable
+	os_module.Pairs["setenv"] = object.MapPair{
+		Key: &object.String{Value: "setenv"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 2 {
+					return object.NewError("wrong number of arguments for OS.setenv. got=%d, want=2", len(args))
+				}
+				name, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("first argument to OS.setenv must be STRING, got %s", args[0].Type())
+				}
+				value, ok := args[1].(*object.String)
+				if !ok {
+					return object.NewError("second argument to OS.setenv must be STRING, got %s", args[1].Type())
+				}
+
+				err := os.Setenv(name.Value, value.Value)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// OS.env() - get all environment variables as map
+	os_module.Pairs["env"] = object.MapPair{
+		Key: &object.String{Value: "env"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.env. got=%d, want=0", len(args))
+				}
+
+				env_map := &object.Map{Pairs: make(map[string]object.MapPair)}
+				for _, env_var := range os.Environ() {
+					parts := strings.SplitN(env_var, "=", 2)
+					if len(parts) == 2 {
+						key := parts[0]
+						value := parts[1]
+						env_map.Pairs[key] = object.MapPair{
+							Key:   &object.String{Value: key},
+							Value: &object.String{Value: value},
+						}
+					}
+				}
+
+				return env_map
+			},
+		},
+	}
+
+	// OS.args() - get command line arguments
+	os_module.Pairs["args"] = object.MapPair{
+		Key: &object.String{Value: "args"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.args. got=%d, want=0", len(args))
+				}
+
+				elements := make([]object.Object, len(command_line_args))
+				for i, arg := range command_line_args {
+					elements[i] = &object.String{Value: arg}
+				}
+
+				return &object.Array{Elements: elements}
+			},
+		},
+	}
+
+	// OS.exit(code) - exit with status code
+	os_module.Pairs["exit"] = object.MapPair{
+		Key: &object.String{Value: "exit"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for OS.exit. got=%d, want=1", len(args))
+				}
+				code, ok := args[0].(*object.Number)
+				if !ok {
+					return object.NewError("argument to OS.exit must be NUMBER, got %s", args[0].Type())
+				}
+
+				os.Exit(int(code.Value))
+				return object.NULL // Never reached
+			},
+		},
+	}
+
+	// OS.pid() - get process ID
+	os_module.Pairs["pid"] = object.MapPair{
+		Key: &object.String{Value: "pid"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.pid. got=%d, want=0", len(args))
+				}
+
+				return &object.Number{Value: float64(os.Getpid())}
+			},
+		},
+	}
+
+	// OS.platform() - get operating system
+	os_module.Pairs["platform"] = object.MapPair{
+		Key: &object.String{Value: "platform"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.platform. got=%d, want=0", len(args))
+				}
+
+				return &object.String{Value: runtime.GOOS}
+			},
+		},
+	}
+
+	// OS.arch() - get architecture
+	os_module.Pairs["arch"] = object.MapPair{
+		Key: &object.String{Value: "arch"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.arch. got=%d, want=0", len(args))
+				}
+
+				return &object.String{Value: runtime.GOARCH}
+			},
+		},
+	}
+
+	// OS.hostname() - get machine hostname
+	os_module.Pairs["hostname"] = object.MapPair{
+		Key: &object.String{Value: "hostname"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.hostname. got=%d, want=0", len(args))
+				}
+
+				hostname, err := os.Hostname()
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return &object.String{Value: hostname}
+			},
+		},
+	}
+
+	// OS.home_dir() - get user home directory
+	os_module.Pairs["home_dir"] = object.MapPair{
+		Key: &object.String{Value: "home_dir"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.home_dir. got=%d, want=0", len(args))
+				}
+
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return &object.String{Value: home}
+			},
+		},
+	}
+
+	// OS.temp_dir() - get temporary directory
+	os_module.Pairs["temp_dir"] = object.MapPair{
+		Key: &object.String{Value: "temp_dir"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.temp_dir. got=%d, want=0", len(args))
+				}
+
+				return &object.String{Value: os.TempDir()}
+			},
+		},
+	}
+
+	// OS.cwd() - get current working directory
+	os_module.Pairs["cwd"] = object.MapPair{
+		Key: &object.String{Value: "cwd"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 0 {
+					return object.NewError("wrong number of arguments for OS.cwd. got=%d, want=0", len(args))
+				}
+
+				cwd, err := os.Getwd()
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return &object.String{Value: cwd}
+			},
+		},
+	}
+
+	// OS.chdir(path) - change current working directory
+	os_module.Pairs["chdir"] = object.MapPair{
+		Key: &object.String{Value: "chdir"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("wrong number of arguments for OS.chdir. got=%d, want=1", len(args))
+				}
+				path, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("argument to OS.chdir must be STRING, got %s", args[0].Type())
+				}
+
+				err := os.Chdir(path.Value)
+				if err != nil {
+					return &object.Error{Message: err.Error(), IsUserCreated: true}
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// OS.exec(command, ...args) - execute command and return output
+	os_module.Pairs["exec"] = object.MapPair{
+		Key: &object.String{Value: "exec"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) < 1 {
+					return object.NewError("wrong number of arguments for OS.exec. got=%d, want=1 or more", len(args))
+				}
+				command, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("first argument to OS.exec must be STRING, got %s", args[0].Type())
+				}
+
+				// Convert remaining arguments to strings
+				cmd_args := make([]string, len(args)-1)
+				for i := 1; i < len(args); i++ {
+					arg_str, ok := args[i].(*object.String)
+					if !ok {
+						return object.NewError("argument %d to OS.exec must be STRING, got %s", i+1, args[i].Type())
+					}
+					cmd_args[i-1] = arg_str.Value
+				}
+
+				// Execute command
+				cmd := exec.Command(command.Value, cmd_args...)
+				output, err := cmd.CombinedOutput()
+
+				if err != nil {
+					user_error := &object.Error{Message: fmt.Sprintf("command failed: %s", err.Error()), IsUserCreated: true}
+					return &object.MultiValue{Values: []object.Object{object.NULL, user_error}}
+				}
+
+				return &object.MultiValue{Values: []object.Object{
+					&object.String{Value: string(output)},
+					object.NULL,
+				}}
+			},
+		},
+	}
+
+	// OS.spawn(command, ...args) - spawn background process and return PID
+	os_module.Pairs["spawn"] = object.MapPair{
+		Key: &object.String{Value: "spawn"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) < 1 {
+					return object.NewError("wrong number of arguments for OS.spawn. got=%d, want=1 or more", len(args))
+				}
+				command, ok := args[0].(*object.String)
+				if !ok {
+					return object.NewError("first argument to OS.spawn must be STRING, got %s", args[0].Type())
+				}
+
+				// Convert remaining arguments to strings
+				cmd_args := make([]string, len(args)-1)
+				for i := 1; i < len(args); i++ {
+					arg_str, ok := args[i].(*object.String)
+					if !ok {
+						return object.NewError("argument %d to OS.spawn must be STRING, got %s", i+1, args[i].Type())
+					}
+					cmd_args[i-1] = arg_str.Value
+				}
+
+				// Spawn command
+				cmd := exec.Command(command.Value, cmd_args...)
+				err := cmd.Start()
+
+				if err != nil {
+					return &object.Error{Message: fmt.Sprintf("failed to spawn command: %s", err.Error()), IsUserCreated: true}
+				}
+
+				return &object.Number{Value: float64(cmd.Process.Pid)}
+			},
+		},
+	}
+
+	return os_module
 }
