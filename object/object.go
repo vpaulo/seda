@@ -37,6 +37,10 @@ const (
 	// Testing types
 	TEST_RESULT_OBJ = "TEST_RESULT"
 
+	// UI types
+	UI_COMPONENT_OBJ = "UI_COMPONENT"
+	UI_ELEMENT_OBJ   = "UI_ELEMENT"
+
 	// Special types
 	NULL_OBJ       = "NULL"
 	ERROR_OBJ      = "ERROR"
@@ -459,3 +463,45 @@ func (tr *TestResult) Inspect() string {
 	return result
 }
 func (tr *TestResult) String() string { return tr.Inspect() }
+
+// UIComponent represents a UI component instance
+type UIComponent struct {
+	Name       string
+	Parameters []*ast.Parameter
+	Body       *ast.ComponentBody
+	Env        *Environment // Closure environment
+}
+
+func (uc *UIComponent) Type() ObjectType { return UI_COMPONENT_OBJ }
+func (uc *UIComponent) Inspect() string {
+	var params []string
+	for _, p := range uc.Parameters {
+		params = append(params, p.Name.String())
+	}
+	return fmt.Sprintf("component %s(%s)", uc.Name, strings.Join(params, ", "))
+}
+func (uc *UIComponent) String() string { return uc.Inspect() }
+
+// UIElement represents a UI element (Window, VBox, Button, etc.)
+type UIElement struct {
+	ElementType string            // Element type: Window, VBox, Button, etc.
+	Properties  map[string]Object // Property values (already evaluated)
+	Children    []*UIElement      // Child UI elements
+}
+
+func (ue *UIElement) Type() ObjectType { return UI_ELEMENT_OBJ }
+func (ue *UIElement) Inspect() string {
+	var props []string
+	for key, value := range ue.Properties {
+		props = append(props, fmt.Sprintf("%s: %s", key, value.Inspect()))
+	}
+
+	result := fmt.Sprintf("%s {%s}", ue.ElementType, strings.Join(props, ", "))
+
+	if len(ue.Children) > 0 {
+		result += fmt.Sprintf(" [%d children]", len(ue.Children))
+	}
+
+	return result
+}
+func (ue *UIElement) String() string { return ue.Inspect() }

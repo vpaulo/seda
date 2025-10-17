@@ -17,6 +17,7 @@ import (
 	"github.com/vpaulo/seda/object"
 	"github.com/vpaulo/seda/parser"
 	"github.com/vpaulo/seda/pkg"
+	"github.com/vpaulo/seda/ui"
 )
 
 // Global flag to prevent infinite recursion in where block tests
@@ -38,6 +39,7 @@ var global_file_module *object.Map
 var global_json_module *object.Map
 var global_os_module *object.Map
 var global_time_module *object.Map
+var global_ui_module *object.Map
 
 func init() {
 	// Initialize the global type objects
@@ -52,6 +54,7 @@ func init() {
 	global_json_module = init_json_module()
 	global_os_module = init_os_module()
 	global_time_module = init_time_module()
+	global_ui_module = init_ui_module()
 
 	// Set up the evaluator reference for object_methods
 	SetEvaluator(func(node interface{}, env *object.Environment) object.Object {
@@ -66,6 +69,21 @@ func init() {
 	SetStringRegistry(global_string_object)
 	SetNumberRegistry(global_number_object)
 	SetMapRegistry(global_map_object)
+
+	// Set up evaluator functions for UI ComponentInstance
+	ui.SetEvalFunc(func(node interface{}, env *object.Environment) object.Object {
+		if ast_node, ok := node.(ast.Node); ok {
+			return Eval(ast_node, env)
+		}
+		return object.NewError("invalid node type")
+	})
+	ui.SetEvalUIElementFunc(func(node interface{}, env *object.Environment) object.Object {
+		if ui_element, ok := node.(*ast.UIElement); ok {
+			return eval_ui_element(ui_element, env)
+		}
+		return object.NewError("invalid UI element node")
+	})
+	ui.SetIsErrorFunc(is_error)
 }
 
 // Eval evaluates an AST node and returns an object
@@ -143,6 +161,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.FnStatement:
 		return eval_fn_statement(node, env)
+
+	case *ast.ComponentStatement:
+		return eval_component_statement(node, env)
 
 	case *ast.ReturnStatement:
 		return eval_return_statement(node, env)
@@ -244,6 +265,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.MapLiteral:
 		return eval_map_literal(node, env)
+
+	case *ast.UIElement:
+		return eval_ui_element(node, env)
 
 	case *ast.IndexExpression:
 		left := Eval(node.Left, env)
@@ -540,6 +564,12 @@ func eval_identifier(node *ast.Identifier, env *object.Environment) object.Objec
 			}
 			return global_time_module
 		}
+		if node.Value == "UI" {
+			if global_ui_module == nil {
+				global_ui_module = init_ui_module()
+			}
+			return global_ui_module
+		}
 		// Check for global type objects
 		if node.Value == "Array" {
 			if global_array_object == nil {
@@ -606,6 +636,40 @@ func eval_map_literal(node *ast.MapLiteral, env *object.Environment) object.Obje
 	}
 
 	return &object.Map{Pairs: pairs}
+}
+
+func eval_ui_element(node *ast.UIElement, env *object.Environment) object.Object {
+	// Create runtime UI element
+	element := &object.UIElement{
+		ElementType: node.Type.Value,
+		Properties:  make(map[string]object.Object),
+		Children:    []*object.UIElement{},
+	}
+
+	// Evaluate properties
+	for key, expr := range node.Properties {
+		value := Eval(expr, env)
+		if is_error(value) {
+			return value
+		}
+		element.Properties[key] = value
+	}
+
+	// Recursively evaluate children
+	for _, child := range node.Children {
+		childObj := eval_ui_element(child, env)
+		if is_error(childObj) {
+			return childObj
+		}
+		// Type assertion to convert object.Object to *object.UIElement
+		if childElement, ok := childObj.(*object.UIElement); ok {
+			element.Children = append(element.Children, childElement)
+		} else {
+			return object.NewError("child is not a UI element: %s", childObj.Type())
+		}
+	}
+
+	return element
 }
 
 func eval_index_expression(left, index object.Object) object.Object {
@@ -1174,6 +1238,20 @@ func eval_fn_statement(node *ast.FnStatement, env *object.Environment) object.Ob
 	// Bind the function to the environment
 	env.Set(node.Name.Value, fn)
 	return fn
+}
+
+func eval_component_statement(node *ast.ComponentStatement, env *object.Environment) object.Object {
+	// Component definitions create a UIComponent object and bind it to the environment
+	component := &object.UIComponent{
+		Name:       node.Name.Value,
+		Parameters: node.Parameters,
+		Body:       node.Body,
+		Env:        env, // Capture closure environment
+	}
+
+	// Bind the component to the environment
+	env.Set(node.Name.Value, component)
+	return component
 }
 
 func eval_return_statement(node *ast.ReturnStatement, env *object.Environment) object.Object {
@@ -3359,4 +3437,121 @@ func init_time_module() *object.Map {
 	}
 
 	return time_module
+}
+
+// UI Module - Declarative UI utilities
+func init_ui_module() *object.Map {
+	ui_module := &object.Map{
+		Pairs: make(map[string]object.MapPair),
+	}
+
+	// UI.mount(component, ...args) - instantiates and renders a component
+	ui_module.Pairs["mount"] = object.MapPair{
+		Key: &object.String{Value: "mount"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) == 0 {
+					return object.NewError("UI.mount() requires at least one argument (component)")
+				}
+
+				// Check if first argument is a UIComponent
+				component, ok := args[0].(*object.UIComponent)
+				if !ok {
+					return object.NewError("UI.mount() first argument must be a component, got %s", args[0].Type())
+				}
+
+				// Create the tview application and renderer first
+				app := ui.NewApplication()
+
+				// Create event handler that can invoke Seda functions and trigger re-renders
+				var componentInstance *ui.ComponentInstance
+				eventHandler := func(callback object.Object) error {
+					// Check if callback is a function
+					fn, ok := callback.(*object.Function)
+					if !ok {
+						return fmt.Errorf("onClick callback is not a function")
+					}
+
+					// Invoke the function with its captured environment (closure)
+					// The function should have captured the component environment
+					result := apply_function(fn, []object.Object{}, fn.Env)
+					if is_error(result) {
+						return fmt.Errorf("error in onClick handler: %s", result.(*object.Error).Message)
+					}
+
+					// Trigger re-render after the event handler completes
+					if componentInstance != nil {
+						componentInstance.Rerender()
+					}
+
+					return nil
+				}
+
+				renderer := ui.NewRenderer(eventHandler)
+
+				// Instantiate the component with app and renderer
+				instance, err := instantiateComponent(component, args[1:], app, renderer)
+				if err != nil {
+					return err
+				}
+				componentInstance = instance
+
+				// Run the application (blocking call)
+				if runErr := app.Run(); runErr != nil {
+					return object.NewError("failed to run UI: %s", runErr.Error())
+				}
+
+				return object.NULL
+			},
+		},
+	}
+
+	// UI.inspect(ui_element) - inspects a UI element tree (debugging utility)
+	ui_module.Pairs["inspect"] = object.MapPair{
+		Key: &object.String{Value: "inspect"},
+		Value: &object.Builtin{
+			Fn: func(args ...object.Object) object.Object {
+				if len(args) != 1 {
+					return object.NewError("UI.inspect() takes 1 argument, got %d", len(args))
+				}
+
+				// Check if argument is a UIElement
+				element, ok := args[0].(*object.UIElement)
+				if !ok {
+					return object.NewError("UI.inspect() argument must be a UI element, got %s", args[0].Type())
+				}
+
+				// Return the string representation of the UI element
+				return &object.String{Value: element.Inspect()}
+			},
+		},
+	}
+
+	return ui_module
+}
+
+// instantiateComponent creates a ComponentInstance that can re-render
+func instantiateComponent(component *object.UIComponent, args []object.Object, app *ui.Application, renderer *ui.Renderer) (*ui.ComponentInstance, object.Object) {
+	// Create component instance
+	instance := ui.NewComponentInstance(component, args)
+	instance.SetApp(app)
+	instance.SetRenderer(renderer)
+
+	// Bind parameters to arguments
+	if len(args) != len(component.Parameters) {
+		return nil, object.NewError("component '%s' expects %d arguments, got %d",
+			component.Name, len(component.Parameters), len(args))
+	}
+
+	for i, param := range component.Parameters {
+		instance.Env.Set(param.Name.Value, args[i])
+	}
+
+	// Perform initial render
+	err := instance.RenderComponent()
+	if err != nil {
+		return nil, object.NewError("failed to render component: %s", err.Error())
+	}
+
+	return instance, nil
 }

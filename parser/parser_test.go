@@ -1326,3 +1326,219 @@ func TestFunctionWithWhereBlock(t *testing.T) {
 	}
 }
 
+func TestComponentStatement(t *testing.T) {
+	input := `
+	component Counter(initial: Number) ::
+		var count = initial
+
+		Window {
+			title: "Counter App",
+			width: 400,
+
+			VBox {
+				Text {
+					text: "Count: 0",
+					fontSize: 24
+				}
+				Button {
+					text: "Increment"
+				}
+			}
+		}
+	end
+	`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ComponentStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ComponentStatement. got=%T",
+			program.Statements[0])
+	}
+
+	// Test component name
+	if stmt.Name.Value != "Counter" {
+		t.Errorf("component name wrong. want 'Counter', got %s", stmt.Name.Value)
+	}
+
+	// Test parameters
+	if len(stmt.Parameters) != 1 {
+		t.Fatalf("component has wrong number of parameters. want 1, got %d",
+			len(stmt.Parameters))
+	}
+
+	if stmt.Parameters[0].Name.Value != "initial" {
+		t.Errorf("parameter name wrong. want 'initial', got %s",
+			stmt.Parameters[0].Name.Value)
+	}
+
+	if stmt.Parameters[0].Type.Name != "Number" {
+		t.Errorf("parameter type wrong. want 'Number', got %s",
+			stmt.Parameters[0].Type.Name)
+	}
+
+	// Test body
+	if stmt.Body == nil {
+		t.Fatal("component body is nil")
+	}
+
+	// Test statements in body (var count = initial)
+	if len(stmt.Body.Statements) != 1 {
+		t.Errorf("component body has wrong number of statements. want 1, got %d",
+			len(stmt.Body.Statements))
+	}
+
+	varStmt, ok := stmt.Body.Statements[0].(*ast.VarStatement)
+	if !ok {
+		t.Fatalf("body statement is not *ast.VarStatement. got=%T",
+			stmt.Body.Statements[0])
+	}
+
+	if varStmt.Names[0].Value != "count" {
+		t.Errorf("var name wrong. want 'count', got %s", varStmt.Names[0].Value)
+	}
+
+	// Test root UI element (Window)
+	if stmt.Body.Root == nil {
+		t.Fatal("component root UI element is nil")
+	}
+
+	if stmt.Body.Root.Type.Value != "Window" {
+		t.Errorf("root element type wrong. want 'Window', got %s",
+			stmt.Body.Root.Type.Value)
+	}
+
+	// Test Window properties
+	if len(stmt.Body.Root.Properties) < 2 {
+		t.Errorf("Window has wrong number of properties. want at least 2, got %d",
+			len(stmt.Body.Root.Properties))
+	}
+
+	// Test Window has children
+	if len(stmt.Body.Root.Children) != 1 {
+		t.Errorf("Window has wrong number of children. want 1, got %d",
+			len(stmt.Body.Root.Children))
+	}
+
+	// Test VBox child
+	vbox := stmt.Body.Root.Children[0]
+	if vbox.Type.Value != "VBox" {
+		t.Errorf("Window child type wrong. want 'VBox', got %s", vbox.Type.Value)
+	}
+
+	// Test VBox has 2 children (Text and Button)
+	if len(vbox.Children) != 2 {
+		t.Errorf("VBox has wrong number of children. want 2, got %d",
+			len(vbox.Children))
+	}
+
+	// Test Text element
+	text := vbox.Children[0]
+	if text.Type.Value != "Text" {
+		t.Errorf("first VBox child type wrong. want 'Text', got %s", text.Type.Value)
+	}
+
+	if len(text.Properties) < 1 {
+		t.Error("Text element has no properties")
+	}
+
+	// Test Button element
+	button := vbox.Children[1]
+	if button.Type.Value != "Button" {
+		t.Errorf("second VBox child type wrong. want 'Button', got %s",
+			button.Type.Value)
+	}
+
+	if len(button.Properties) < 1 {
+		t.Error("Button element has no properties")
+	}
+}
+
+func TestSimpleComponent(t *testing.T) {
+	input := `
+	component HelloWorld() ::
+		Window {
+			title: "Hello"
+		}
+	end
+	`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ComponentStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ComponentStatement. got=%T",
+			program.Statements[0])
+	}
+
+	if stmt.Name.Value != "HelloWorld" {
+		t.Errorf("component name wrong. want 'HelloWorld', got %s", stmt.Name.Value)
+	}
+
+	if len(stmt.Parameters) != 0 {
+		t.Errorf("expected 0 parameters, got %d", len(stmt.Parameters))
+	}
+
+	if stmt.Body.Root == nil {
+		t.Fatal("component root is nil")
+	}
+
+	if stmt.Body.Root.Type.Value != "Window" {
+		t.Errorf("root type wrong. want 'Window', got %s", stmt.Body.Root.Type.Value)
+	}
+}
+
+func TestUIElementWithCallback(t *testing.T) {
+	input := `
+	component App() ::
+		Button {
+			text: "Click",
+			onClick: fn() :: println("clicked") end
+		}
+	end
+	`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ComponentStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ComponentStatement. got=%T",
+			program.Statements[0])
+	}
+
+	button := stmt.Body.Root
+	if button.Type.Value != "Button" {
+		t.Errorf("root type wrong. want 'Button', got %s", button.Type.Value)
+	}
+
+	// Test that onClick property exists and is a function
+	onClickProp, ok := button.Properties["onClick"]
+	if !ok {
+		t.Fatal("onClick property not found")
+	}
+
+	_, ok = onClickProp.(*ast.FunctionLiteral)
+	if !ok {
+		t.Errorf("onClick is not *ast.FunctionLiteral. got=%T", onClickProp)
+	}
+}
+
