@@ -1,7 +1,7 @@
 println("Running Queue tests...")
 
 fn createQueue() ::
-  const queue = []
+  var queue = []
 
   queue.enqueue = fn(self, value) ::
     return self.push(value)

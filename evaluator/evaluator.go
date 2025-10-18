@@ -94,6 +94,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		// Single assignment (backward compatible)
 		if len(node.Names) == 1 {
 			if node.IsConstant {
+				// Mark the value as immutable (deep immutability)
+				mark_immutable(val)
 				env.SetConstant(node.Names[0].Value, val)
 			} else {
 				env.Set(node.Names[0].Value, val)
@@ -121,6 +123,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		// Assign each value to corresponding variable
 		for i, name := range node.Names {
 			if node.IsConstant {
+				// Mark each value as immutable (deep immutability)
+				mark_immutable(values[i])
 				env.SetConstant(name.Value, values[i])
 			} else {
 				env.Set(name.Value, values[i])
@@ -287,6 +291,11 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 			// Handle map index assignment
 			if map_obj, ok := collection.(*object.Map); ok {
+				// Check if map is immutable
+				if map_obj.IsImmutable {
+					return object.NewError("cannot modify immutable map")
+				}
+
 				// Convert index to string key
 				var key string
 				switch idx := index.(type) {
@@ -307,6 +316,11 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 			// Handle array index assignment
 			if array_obj, ok := collection.(*object.Array); ok {
+				// Check if array is immutable
+				if array_obj.IsImmutable {
+					return object.NewError("cannot modify immutable array")
+				}
+
 				if num_idx, ok := index.(*object.Number); ok {
 					idx := int(num_idx.Value)
 					if idx < 0 || idx >= len(array_obj.Elements) {
@@ -791,6 +805,31 @@ func eval_logical_infix_expression(operator string, left, right object.Object) o
 		return native_bool(left_truthy || right_truthy)
 	default:
 		return object.NewError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+	}
+}
+
+// mark_immutable marks an object and all nested structures as immutable (deep immutability)
+func mark_immutable(obj object.Object) {
+	switch v := obj.(type) {
+	case *object.Array:
+		v.IsImmutable = true
+		// Recursively mark all nested elements as immutable
+		for _, elem := range v.Elements {
+			mark_immutable(elem)
+		}
+	case *object.Map:
+		v.IsImmutable = true
+		// Recursively mark all nested values as immutable
+		for _, pair := range v.Pairs {
+			mark_immutable(pair.Value)
+		}
+	case *object.Number:
+		v.IsImmutable = true
+	case *object.String:
+		v.IsImmutable = true
+	case *object.Boolean:
+		v.IsImmutable = true
+	// Other types (NULL, functions, etc.) don't need immutability tracking
 	}
 }
 

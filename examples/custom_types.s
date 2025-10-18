@@ -71,7 +71,7 @@ check "Number based Counter type" ::
 end
 
 fn createCounter2(initial) ::
-  const counter = {"value": initial}
+  var counter = {"value": initial}
 
   counter.increment = fn(self) ::
     self["value"] = self["value"] + 1
@@ -96,8 +96,8 @@ fn createCounter2(initial) ::
 end
 
 check "Number-Map based Counter type" ::
-  const count = createCounter2(5)
-  
+  var count = createCounter2(5)
+
   count.value is 5
   count.increment.value is 6
   count.double.value is 12
@@ -110,7 +110,7 @@ end
 # ==========================================
 
 fn createStack() ::
-  const stack = []
+  var stack = []
 
   stack.push = fn(self, value) ::
     return self.push(value)
@@ -153,7 +153,7 @@ end
 # ==========================================
 
 fn createRectangle(width, height) ::
-  const rect = {"width": width, "height": height}
+  var rect = {"width": width, "height": height}
 
   rect.area = fn(self) ::
     return self["width"] * self["height"]
