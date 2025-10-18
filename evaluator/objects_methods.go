@@ -471,6 +471,11 @@ func call_array_method(arr *object.Array, method_name string, args []object.Obje
 		return &object.Number{Value: float64(len(arr.Elements))}
 
 	case "push":
+		// Check immutability
+		if arr.IsImmutable {
+			return object.NewError("cannot call push() on immutable array")
+		}
+
 		if len(args) != 1 {
 			return object.NewError("wrong number of arguments for Array.push. got=%d, want=1", len(args))
 		}
@@ -480,6 +485,11 @@ func call_array_method(arr *object.Array, method_name string, args []object.Obje
 		return arr
 
 	case "pop":
+		// Check immutability
+		if arr.IsImmutable {
+			return object.NewError("cannot call pop() on immutable array")
+		}
+
 		if len(args) != 0 {
 			return object.NewError("wrong number of arguments for Array.pop. got=%d, want=0", len(args))
 		}
@@ -489,7 +499,13 @@ func call_array_method(arr *object.Array, method_name string, args []object.Obje
 			return object.NULL
 		}
 
-		return arr.Elements[length-1]
+		// Get the last element
+		lastElement := arr.Elements[length-1]
+
+		// Remove the last element from the array
+		arr.Elements = arr.Elements[:length-1]
+
+		return lastElement
 
 	case "first":
 		if len(args) != 0 {
@@ -759,6 +775,11 @@ func call_array_method(arr *object.Array, method_name string, args []object.Obje
 
 	// Transformation methods
 	case "sort":
+		// Check immutability
+		if arr.IsImmutable {
+			return object.NewError("cannot call sort() on immutable array")
+		}
+
 		if len(args) != 0 {
 			return object.NewError("wrong number of arguments for Array.sort. got=%d, want=0", len(args))
 		}
@@ -783,6 +804,11 @@ func call_array_method(arr *object.Array, method_name string, args []object.Obje
 		return arr
 
 	case "sort_by":
+		// Check immutability
+		if arr.IsImmutable {
+			return object.NewError("cannot call sort_by() on immutable array")
+		}
+
 		if len(args) != 1 {
 			return object.NewError("wrong number of arguments for Array.sort_by. got=%d, want=1", len(args))
 		}
@@ -830,6 +856,11 @@ func call_array_method(arr *object.Array, method_name string, args []object.Obje
 		return arr
 
 	case "reverse":
+		// Check immutability
+		if arr.IsImmutable {
+			return object.NewError("cannot call reverse() on immutable array")
+		}
+
 		if len(args) != 0 {
 			return object.NewError("wrong number of arguments for Array.reverse. got=%d, want=0", len(args))
 		}

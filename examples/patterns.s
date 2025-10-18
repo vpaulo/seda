@@ -57,7 +57,7 @@ end
 # ==========================================
 
 fn createEngine(horsepower) ::
-  const engine = {"hp": horsepower, "running": false}
+  var engine = {"hp": horsepower, "running": false}
 
   engine.start = fn(self) ::
     self["running"] = true
@@ -77,7 +77,7 @@ fn createEngine(horsepower) ::
 end
 
 fn createCar(model, horsepower) ::
-  const car = {
+  var car = {
     "model": model,
     "engine": createEngine(horsepower),
     "speed": 0
@@ -108,7 +108,7 @@ fn createCar(model, horsepower) ::
   return car
 end
 
-const myCar = createCar("Batman tumbler", 670)
+var myCar = createCar("Batman tumbler", 670)
 
 check "Composition pattern" ::
   myCar.describe is "Batman tumbler (Engine: 670 HP)"
@@ -123,7 +123,7 @@ end
 # ==========================================
 
 fn PersonBuilder() ::
-  const builder = {
+  var builder = {
     "name": "",
     "age": 0,
     "city": "",
@@ -169,7 +169,7 @@ fn PersonBuilder() ::
   return builder
 end
 
-const person = PersonBuilder()
+var person = PersonBuilder()
   .withName("John Doe")
   .withAge(30)
   .withCity("New York")
@@ -185,7 +185,7 @@ end
 # ==========================================
 
 fn createTrafficLight() ::
-  const light = {
+  var light = {
     "currentState": 0,  # 0=red, 1=yellow, 2=green
     "states": ["RED", "YELLOW", "GREEN"]
   }
@@ -234,7 +234,7 @@ end
 # ==========================================
 
 fn createAnimal(name, species) ::
-  const animal = {"name": name, "species": species}
+  var animal = {"name": name, "species": species}
 
   animal.speak = fn(self) ::
     return self["name"] + " makes a sound"
@@ -249,7 +249,7 @@ end
 
 fn createDog(name, breed) ::
   # Create base animal
-  const dog = createAnimal(name, "Dog")
+  var dog = createAnimal(name, "Dog")
 
   # Add dog-specific properties
   dog["breed"] = breed
@@ -273,9 +273,9 @@ fn createDog(name, breed) ::
   return dog
 end
 
-const myDog = createDog("Max", "Golden Retriever")
-
 check "Inheritance pattern" ::
+  var myDog = createDog("Max", "Golden Retriever")
+
   myDog.describe is "Max is a Dog (Breed: Golden Retriever)"
   myDog.speak is "Max barks: Woof!"
   myDog.fetch is "Max fetches the ball!"
@@ -284,8 +284,6 @@ end
 # ==========================================
 # 6. SINGLETON PATTERN (Number-based)
 # ==========================================
-
-print("\n--- Singleton Pattern: Configuration ---")
 
 fn getConfig() ::
   const config = 1  # Dummy value, we'll use properties
@@ -314,9 +312,9 @@ fn getConfig() ::
   return config
 end
 
-const config = getConfig()
-
 check "Singleton pattern" ::
+  var config = getConfig()
+
   config.describe is "MyApp v1.0.0 (Debug: true)"
 end
 
@@ -325,18 +323,18 @@ end
 # ==========================================
 
 fn createSorter() ::
-  const sorter = {"strategy": "bubble"}
+  var sorter = {"strategy": "bubble"}
 
   sorter.setStrategy = fn(self, strategy) ::
-    self["strategy"] = strategy
+    self.strategy = strategy
     return self
   end
 
   sorter.sort = fn(self, data) ::
-    if self["strategy"] == "bubble" ::
+    if self.strategy == "bubble" ::
       return "Bubble sorting array of " + data.length.to_string + " elements"
     else ::
-      if self["strategy"] == "quick" ::
+      if self.strategy == "quick" ::
         return "Quick sorting array of " + data.length.to_string + " elements"
       else ::
         return "Default sorting array of " + data.length.to_string + " elements"
@@ -348,12 +346,14 @@ fn createSorter() ::
 end
 
 var sorter = createSorter()
-const numbers = [3, 1, 4, 1, 5, 9]
+var numbers = [3, 1, 4, 1, 5, 9]
 
-sorter = sorter.setStrategy("quick")
+sorter.setStrategy("quick")
+
+var sort = sorter.sort(numbers)
 
 check "Strategy pattern" ::
-  sorter.sort(numbers) is "Quick sorting array of 6 elements"
+  sort is "Quick sorting array of 6 elements"
 end
 
 # ==========================================
@@ -361,7 +361,7 @@ end
 # ==========================================
 
 fn createEventEmitter() ::
-  const emitter = {"listeners": []}
+  var emitter = {"listeners": []}
 
   emitter.on = fn(self, listener) ::
     self["listeners"] = self["listeners"].push(listener)
@@ -384,11 +384,8 @@ fn createEventEmitter() ::
 end
 
 var emitter = createEventEmitter()
-emitter = emitter.on("listener1")
-emitter = emitter.on("listener2")
-
-println("Listeners: ", emitter.listenerCount)
-println(emitter.emit("data-changed"))
+emitter.on("listener1")
+emitter.on("listener2")
 
 check "Observable pattern" ::
   emitter.listenerCount is 2
