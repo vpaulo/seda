@@ -21,11 +21,6 @@ fn createPerson(name, age) ::
   return person
 end
 
-#const alice = createPerson("Alice", 25)
-#println(alice.greet)
-#println(alice.birthday)
-#println(alice.greet)
-
 check "String based Person type" ::
   const alice = createPerson("Alice", 25)
   
@@ -181,10 +176,6 @@ fn createRectangle(width, height) ::
 end
 
 const rect = createRectangle(10, 5)
-println(rect.describe)
-println("Area: ", rect.area)
-println("Perimeter: ", rect.perimeter)
-println("Is square: ", rect.isSquare)
 
 check "String based Person type" ::
   rect.describe is "Rectangle: 10x5"
@@ -196,8 +187,6 @@ end
 # ==========================================
 # 5. BOOLEAN-BASED TYPES
 # ==========================================
-
-print("\n--- Boolean-Based Flag Type ---")
 
 fn createFlag(initialState) ::
   const flag = initialState

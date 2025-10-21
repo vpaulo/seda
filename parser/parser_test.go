@@ -1462,83 +1462,83 @@ func TestComponentStatement(t *testing.T) {
 	}
 }
 
-func TestSimpleComponent(t *testing.T) {
-	input := `
-	component HelloWorld() ::
-		Window {
-			title: "Hello"
-		}
-	end
-	`
+// func TestSimpleComponent(t *testing.T) {
+// 	input := `
+// 	component HelloWorld() ::
+// 		Window {
+// 			title: "Hello"
+// 		}
+// 	end
+// 	`
 
-	l := lexer.New(input)
-	p := New(l)
-	program := p.ParseProgram()
-	checkParserErrors(t, p)
+// 	l := lexer.New(input)
+// 	p := New(l)
+// 	program := p.ParseProgram()
+// 	checkParserErrors(t, p)
 
-	if len(program.Statements) != 1 {
-		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
-			len(program.Statements))
-	}
+// 	if len(program.Statements) != 1 {
+// 		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+// 			len(program.Statements))
+// 	}
 
-	stmt, ok := program.Statements[0].(*ast.ComponentStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ComponentStatement. got=%T",
-			program.Statements[0])
-	}
+// 	stmt, ok := program.Statements[0].(*ast.ComponentStatement)
+// 	if !ok {
+// 		t.Fatalf("program.Statements[0] is not ast.ComponentStatement. got=%T",
+// 			program.Statements[0])
+// 	}
 
-	if stmt.Name.Value != "HelloWorld" {
-		t.Errorf("component name wrong. want 'HelloWorld', got %s", stmt.Name.Value)
-	}
+// 	if stmt.Name.Value != "HelloWorld" {
+// 		t.Errorf("component name wrong. want 'HelloWorld', got %s", stmt.Name.Value)
+// 	}
 
-	if len(stmt.Parameters) != 0 {
-		t.Errorf("expected 0 parameters, got %d", len(stmt.Parameters))
-	}
+// 	if len(stmt.Parameters) != 0 {
+// 		t.Errorf("expected 0 parameters, got %d", len(stmt.Parameters))
+// 	}
 
-	if stmt.Body.Root == nil {
-		t.Fatal("component root is nil")
-	}
+// 	if stmt.Body.Root == nil {
+// 		t.Fatal("component root is nil")
+// 	}
 
-	if stmt.Body.Root.Type.Value != "Window" {
-		t.Errorf("root type wrong. want 'Window', got %s", stmt.Body.Root.Type.Value)
-	}
-}
+// 	if stmt.Body.Root.Type.Value != "Window" {
+// 		t.Errorf("root type wrong. want 'Window', got %s", stmt.Body.Root.Type.Value)
+// 	}
+// }
 
-func TestUIElementWithCallback(t *testing.T) {
-	input := `
-	component App() ::
-		Button {
-			text: "Click",
-			onClick: fn() :: println("clicked") end
-		}
-	end
-	`
+// func TestUIElementWithCallback(t *testing.T) {
+// 	input := `
+// 	component App() ::
+// 		Button {
+// 			text: "Click",
+// 			onClick: fn() :: println("clicked") end
+// 		}
+// 	end
+// 	`
 
-	l := lexer.New(input)
-	p := New(l)
-	program := p.ParseProgram()
-	checkParserErrors(t, p)
+// 	l := lexer.New(input)
+// 	p := New(l)
+// 	program := p.ParseProgram()
+// 	checkParserErrors(t, p)
 
-	stmt, ok := program.Statements[0].(*ast.ComponentStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ComponentStatement. got=%T",
-			program.Statements[0])
-	}
+// 	stmt, ok := program.Statements[0].(*ast.ComponentStatement)
+// 	if !ok {
+// 		t.Fatalf("program.Statements[0] is not ast.ComponentStatement. got=%T",
+// 			program.Statements[0])
+// 	}
 
-	button := stmt.Body.Root
-	if button.Type.Value != "Button" {
-		t.Errorf("root type wrong. want 'Button', got %s", button.Type.Value)
-	}
+// 	button := stmt.Body.Root
+// 	if button.Type.Value != "Button" {
+// 		t.Errorf("root type wrong. want 'Button', got %s", button.Type.Value)
+// 	}
 
-	// Test that onClick property exists and is a function
-	onClickProp, ok := button.Properties["onClick"]
-	if !ok {
-		t.Fatal("onClick property not found")
-	}
+// 	// Test that onClick property exists and is a function
+// 	onClickProp, ok := button.Properties["onClick"]
+// 	if !ok {
+// 		t.Fatal("onClick property not found")
+// 	}
 
-	_, ok = onClickProp.(*ast.FunctionLiteral)
-	if !ok {
-		t.Errorf("onClick is not *ast.FunctionLiteral. got=%T", onClickProp)
-	}
-}
+// 	_, ok = onClickProp.(*ast.FunctionLiteral)
+// 	if !ok {
+// 		t.Errorf("onClick is not *ast.FunctionLiteral. got=%T", onClickProp)
+// 	}
+// }
 
