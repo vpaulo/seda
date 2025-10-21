@@ -56,8 +56,9 @@ type Object interface {
 
 // Number represents a numeric value
 type Number struct {
-	Value      float64
-	Properties map[string]Object // Custom properties/methods
+	Value       float64
+	Properties  map[string]Object // Custom properties/methods
+	IsImmutable bool              // True if this number is immutable (const)
 }
 
 func (n *Number) Type() ObjectType { return NUMBER_OBJ }
@@ -66,8 +67,9 @@ func (n *Number) String() string   { return n.Inspect() }
 
 // String represents a string value
 type String struct {
-	Value      string
-	Properties map[string]Object // Custom properties/methods
+	Value       string
+	Properties  map[string]Object // Custom properties/methods
+	IsImmutable bool              // True if this string is immutable (const)
 }
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
@@ -76,8 +78,9 @@ func (s *String) String() string   { return s.Value }
 
 // Boolean represents a boolean value
 type Boolean struct {
-	Value      bool
-	Properties map[string]Object // Custom properties/methods
+	Value       bool
+	Properties  map[string]Object // Custom properties/methods
+	IsImmutable bool              // True if this boolean is immutable (const)
 }
 
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
@@ -96,8 +99,9 @@ func (t *Time) String() string   { return t.Inspect() }
 
 // Array represents an array of objects
 type Array struct {
-	Elements   []Object
-	Properties map[string]Object // Custom properties/methods
+	Elements    []Object
+	Properties  map[string]Object // Custom properties/methods
+	IsImmutable bool              // True if this array is immutable (const)
 }
 
 func (a *Array) Type() ObjectType { return ARRAY_OBJ }
@@ -134,8 +138,9 @@ type MapPair struct {
 
 // Map represents a map/hash/dictionary
 type Map struct {
-	Pairs map[string]MapPair
-	Properties map[string]Object // Custom properties/methods
+	Pairs       map[string]MapPair
+	Properties  map[string]Object // Custom properties/methods
+	IsImmutable bool              // True if this map is immutable (const)
 }
 
 func (m *Map) Type() ObjectType { return MAP_OBJ }

@@ -8,7 +8,7 @@ println("Running random tests...")
 # ==========================================
 
 fn createTodo(id, title, completed) ::
-  const todo = {"id": id, "title": title, "completed": completed}
+  var todo = {"id": id, "title": title, "completed": completed}
 
   todo.toggle = fn(self) ::
     self["completed"] = not self["completed"]
@@ -27,7 +27,7 @@ fn createTodo(id, title, completed) ::
 end
 
 fn createTodoList() ::
-  const list = {"todos": [], "nextId": 1}
+  var list = {"todos": [], "nextId": 1}
 
   list.add = fn(self, title) ::
     const todo = createTodo(self["nextId"], title, false)
@@ -81,7 +81,7 @@ fn createProduct(name, price) ::
 end
 
 fn createCart() ::
-  const cart = {"items": []}
+  var cart = {"items": []}
 
   cart.add = fn(self, product) ::
     self["items"] = self["items"].push(product)
@@ -126,7 +126,7 @@ end
 # ==========================================
 
 fn createUser(username, password) ::
-  const user = {
+  var user = {
     "username": username,
     "password": password,
     "loggedIn": false,
@@ -166,7 +166,7 @@ fn createUser(username, password) ::
 end
 
 check "User Authentication System" ::
-  const user = createUser("alice", "secret123")
+  var user = createUser("alice", "secret123")
 
   user.login("wrong") is "Invalid password. Attempts: 1"
   user.login("secret123") is "Welcome, alice!"
@@ -179,7 +179,7 @@ end
 # ==========================================
 
 fn createBankAccount(accountNumber, initialBalance) ::
-  const account = {
+  var account = {
     "accountNumber": accountNumber,
     "balance": initialBalance,
     "transactions": []
@@ -218,7 +218,7 @@ fn createBankAccount(accountNumber, initialBalance) ::
 end
 
 check "Bank Account System" ::
-  const myAccount = createBankAccount(12345, 1000)
+  var myAccount = createBankAccount(12345, 1000)
 
   myAccount.deposit(500) is "Deposited $500. New balance: $1500"
   myAccount.withdraw(200) is "Withdrew $200. New balance: $1300"
@@ -231,7 +231,7 @@ end
 # ==========================================
 
 fn createStopwatch() ::
-  const watch = {"startTime": 0, "elapsed": 0, "running": false}
+  var watch = {"startTime": 0, "elapsed": 0, "running": false}
 
   watch.start = fn(self) ::
     const running = self["running"]
@@ -283,7 +283,7 @@ end
 # ==========================================
 
 fn createValidator() ::
-  const validator = {"errors": []}
+  var validator = {"errors": []}
 
   validator.required = fn(self, value, fieldName) ::
     # Simple check for empty string
@@ -335,7 +335,7 @@ end
 # ==========================================
 
 fn createCache(maxSize) ::
-  const cache = {"data": {}, "maxSize": maxSize, "size": 0}
+  var cache = {"data": {}, "maxSize": maxSize, "size": 0}
 
   cache.set = fn(self, key, value) ::
     if self["size"] < self["maxSize"] ::
@@ -383,7 +383,7 @@ end
 # ==========================================
 
 fn createLogger(name) ::
-  const logger = {"name": name, "logs": []}
+  var logger = {"name": name, "logs": []}
 
   logger.info = fn(self, message) ::
     const log = "[INFO] " + self["name"] + ": " + message
