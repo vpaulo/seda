@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"fyne.io/fyne/v2"
 	"github.com/vpaulo/seda/ast"
 	"github.com/vpaulo/seda/lexer"
 	"github.com/vpaulo/seda/object"
@@ -3499,7 +3500,7 @@ func init_ui_module() *object.Map {
 					return object.NewError("UI.mount() first argument must be a component, got %s", args[0].Type())
 				}
 
-				// Create the tview application and renderer first
+				// Create the Fyne application
 				app := ui.NewApplication()
 
 				// Create event handler that can invoke Seda functions and trigger re-renders
@@ -3526,18 +3527,14 @@ func init_ui_module() *object.Map {
 					return nil
 				}
 
-				renderer := ui.NewRenderer(eventHandler)
+				// Create renderer with app reference
+				renderer := ui.NewRenderer(app, eventHandler)
 
 				// Instantiate the component with app and renderer
-				instance, err := instantiateComponent(component, args[1:], app, renderer)
+				// Note: We need to set componentInstance BEFORE ShowAndRun (which blocks)
+				_, err := instantiateComponent(component, args[1:], app, renderer, &componentInstance)
 				if err != nil {
 					return err
-				}
-				componentInstance = instance
-
-				// Run the application (blocking call)
-				if runErr := app.Run(); runErr != nil {
-					return object.NewError("failed to run UI: %s", runErr.Error())
 				}
 
 				return object.NULL
@@ -3570,7 +3567,7 @@ func init_ui_module() *object.Map {
 }
 
 // instantiateComponent creates a ComponentInstance that can re-render
-func instantiateComponent(component *object.UIComponent, args []object.Object, app *ui.Application, renderer *ui.Renderer) (*ui.ComponentInstance, object.Object) {
+func instantiateComponent(component *object.UIComponent, args []object.Object, app fyne.App, renderer *ui.Renderer, instancePtr **ui.ComponentInstance) (*ui.ComponentInstance, object.Object) {
 	// Create component instance
 	instance := ui.NewComponentInstance(component, args)
 	instance.SetApp(app)
@@ -3586,11 +3583,39 @@ func instantiateComponent(component *object.UIComponent, args []object.Object, a
 		instance.Env.Set(param.Name.Value, args[i])
 	}
 
+	// Extract window title from component body root (before full evaluation)
+	// We need to check the AST directly for the title property
+	windowTitle := "Seda Application" // default
+	if component.Body.Root != nil {
+		uiExpr := component.Body.Root
+		if uiExpr.Type.Value == "Window" {
+			if titleExpr, ok := uiExpr.Properties["title"]; ok {
+				// Evaluate just the title property
+				titleObj := Eval(titleExpr, instance.Env)
+				if titleStr, ok := titleObj.(*object.String); ok {
+					windowTitle = titleStr.Value
+				}
+			}
+		}
+	}
+
+	// Create the main window
+	window := app.NewWindow(windowTitle)
+	window.SetPadded(true) // Add padding for better appearance
+	instance.SetWindow(window)
+
 	// Perform initial render
 	err := instance.RenderComponent()
 	if err != nil {
 		return nil, object.NewError("failed to render component: %s", err.Error())
 	}
+
+	// Set the instance pointer BEFORE ShowAndRun (which blocks)
+	// This allows event handlers to access the component instance
+	*instancePtr = instance
+
+	// Show and run the window (blocking call)
+	window.ShowAndRun()
 
 	return instance, nil
 }

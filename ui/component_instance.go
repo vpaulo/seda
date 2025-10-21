@@ -1,24 +1,24 @@
 package ui
 
 import (
+	"fmt"
 	"sync"
 
-	"github.com/rivo/tview"
+	"fyne.io/fyne/v2"
 	"github.com/vpaulo/seda/object"
 )
 
-// Application is an alias for tview.Application
-type Application = tview.Application
-
 // ComponentInstance represents a running component with reactive state
 type ComponentInstance struct {
-	component *object.UIComponent
-	args      []object.Object
-	Env       *object.Environment
-	renderer  *Renderer
-	app       *Application
-	rootWidget tview.Primitive
-	mutex     sync.Mutex
+	component      *object.UIComponent
+	args           []object.Object
+	Env            *object.Environment
+	renderer       *Renderer
+	app            fyne.App
+	window         fyne.Window
+	rootWidget     fyne.CanvasObject
+	mutex          sync.Mutex
+	initialized    bool // Track if component statements have been evaluated
 }
 
 // NewComponentInstance creates a new component instance
@@ -30,9 +30,14 @@ func NewComponentInstance(component *object.UIComponent, args []object.Object) *
 	}
 }
 
-// SetApp sets the tview application
-func (ci *ComponentInstance) SetApp(app *Application) {
+// SetApp sets the Fyne application
+func (ci *ComponentInstance) SetApp(app fyne.App) {
 	ci.app = app
+}
+
+// SetWindow sets the Fyne window
+func (ci *ComponentInstance) SetWindow(window fyne.Window) {
+	ci.window = window
 }
 
 // SetRenderer sets the renderer
@@ -45,14 +50,17 @@ func (ci *ComponentInstance) RenderComponent() error {
 	ci.mutex.Lock()
 	defer ci.mutex.Unlock()
 
-	// Re-evaluate component body statements (var declarations)
-	for _, stmt := range ci.component.Body.Statements {
-		// Use the Eval function from evaluator package
-		// Note: We'll need to expose this function
-		result := evalFunc(stmt, ci.Env)
-		if isErrorFunc(result) {
-			return &ComponentError{Message: result.(*object.Error).Message}
+	// Only evaluate component body statements (var declarations) on first render
+	// On rerenders, we want to keep the existing variable values (reactive state)
+	if !ci.initialized {
+		for _, stmt := range ci.component.Body.Statements {
+			// Use the Eval function from evaluator package
+			result := evalFunc(stmt, ci.Env)
+			if isErrorFunc(result) {
+				return &ComponentError{Message: result.(*object.Error).Message}
+			}
 		}
+		ci.initialized = true
 	}
 
 	// Evaluate the root UI element
@@ -78,9 +86,9 @@ func (ci *ComponentInstance) RenderComponent() error {
 
 	ci.rootWidget = widget
 
-	// Set the root widget on the app
-	if ci.app != nil {
-		ci.app.SetRoot(widget, true)
+	// Set the content on the window
+	if ci.window != nil {
+		ci.window.SetContent(widget)
 	}
 
 	return nil
@@ -88,13 +96,16 @@ func (ci *ComponentInstance) RenderComponent() error {
 
 // Rerender re-renders the component from event handlers
 func (ci *ComponentInstance) Rerender() {
-	// This will be called from event handlers (different goroutine)
-	// Use QueueUpdateDraw to safely update UI from any goroutine
-	if ci.app != nil {
-		ci.app.QueueUpdateDraw(func() {
-			ci.RenderComponent()
-		})
+	// Fyne requires UI updates to happen on the main goroutine
+	// But since button clicks already happen on the UI thread, we can call directly
+	if err := ci.RenderComponent(); err != nil {
+		// Log error but don't crash
+		fmt.Printf("Error during rerender: %v\n", err)
+		return
 	}
+
+	// The new content is already set by RenderComponent via SetContent()
+	// No additional refresh needed - SetContent handles it
 }
 
 // ComponentError represents a component rendering error
