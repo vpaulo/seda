@@ -145,6 +145,87 @@ type UsingStatement struct {
 	Alias *Identifier // Optional alias for module
 }
 
+// Component Declaration (UI component)
+type ComponentStatement struct {
+	Name       *Identifier
+	Parameters []*Parameter
+	Body       *ComponentBody
+}
+
+func (cs *ComponentStatement) statementNode() {}
+func (cs *ComponentStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString("component ")
+	out.WriteString(cs.Name.String())
+	out.WriteString("(")
+	params := []string{}
+	for _, p := range cs.Parameters {
+		params = append(params, p.String())
+	}
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString(") ::")
+	if cs.Body != nil {
+		out.WriteString(cs.Body.String())
+	}
+	out.WriteString("\nend")
+	return out.String()
+}
+
+// ComponentBody holds both state (var declarations) and UI tree
+type ComponentBody struct {
+	Statements []Statement // var declarations, assignments
+	Root       *UIElement  // root UI element (e.g., Window)
+}
+
+func (cb *ComponentBody) String() string {
+	var out bytes.Buffer
+	for _, stmt := range cb.Statements {
+		out.WriteString("\n  ")
+		out.WriteString(stmt.String())
+	}
+	if cb.Root != nil {
+		out.WriteString("\n  ")
+		out.WriteString(cb.Root.String())
+	}
+	return out.String()
+}
+
+// UIElement represents a UI element (Window, VBox, Text, Button, etc.)
+type UIElement struct {
+	Type       *Identifier            // Window, VBox, Button, etc.
+	Properties map[string]Expression  // title: "Hello", width: 400px, onClick: fn() :: ... end
+	Children   []*UIElement           // nested UI elements
+}
+
+func (ue *UIElement) expressionNode() {}
+func (ue *UIElement) String() string {
+	var out bytes.Buffer
+	out.WriteString(ue.Type.String())
+	out.WriteString(" {")
+
+	// Properties
+	if len(ue.Properties) > 0 {
+		out.WriteString("\n")
+		for key, value := range ue.Properties {
+			out.WriteString("    ")
+			out.WriteString(key)
+			out.WriteString(": ")
+			out.WriteString(value.String())
+			out.WriteString(",\n")
+		}
+	}
+
+	// Children
+	for _, child := range ue.Children {
+		out.WriteString("    ")
+		out.WriteString(child.String())
+		out.WriteString("\n")
+	}
+
+	out.WriteString("  }")
+	return out.String()
+}
+
 func (ts *TypeStatement) statementNode() {}
 func (ts *TypeStatement) String() string {
 	var out bytes.Buffer

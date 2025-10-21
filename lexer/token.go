@@ -91,6 +91,10 @@ const (
 	FALSE    // false
 	NIL      // nil
 
+	// UI Keywords
+	COMPONENT // component
+	UI        // UI (namespace)
+
 	// Type keywords
 	NUMBER_TYPE  // number
 	STRING_TYPE  // string
@@ -251,6 +255,10 @@ func (t TokenType) String() string {
 		return "false"
 	case NIL:
 		return "nil"
+	case COMPONENT:
+		return "component"
+	case UI:
+		return "UI"
 	case NUMBER_TYPE:
 		return "number"
 	case STRING_TYPE:
@@ -314,6 +322,9 @@ var keywords = map[string]TokenType{
 	"true":     TRUE,
 	"false":    FALSE,
 	"nil":      NIL,
+	"component": COMPONENT,
+	// NOTE: UI is NOT a keyword - it's an identifier like Math, File, etc.
+	// "UI":       UI,
 	"number":   NUMBER_TYPE,
 	"string":   STRING_TYPE,
 	"boolean":  BOOLEAN_TYPE,

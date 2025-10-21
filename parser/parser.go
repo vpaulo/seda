@@ -192,6 +192,8 @@ func (parser *Parser) parse_statement() ast.Statement {
 			return stmt
 		}
 		return parser.parse_expression_statement()
+	case lexer.COMPONENT:
+		return parser.parse_component_statement()
 	case lexer.STRUCT:
 		return parser.parse_struct_statement()
 	case lexer.TYPE:
@@ -339,6 +341,67 @@ func (parser *Parser) parse_fn_statement() *ast.FnStatement {
 	// No need to call expect_peek since we should already be on END
 
 	return stmt
+}
+
+// parse_component_statement parses UI component declarations
+func (parser *Parser) parse_component_statement() *ast.ComponentStatement {
+	stmt := &ast.ComponentStatement{}
+
+	// Expect component name
+	if !parser.expect_peek(lexer.IDENT) {
+		return nil
+	}
+
+	stmt.Name = &ast.Identifier{Value: parser.current_token.Literal}
+
+	// Expect parameter list
+	if !parser.expect_peek(lexer.LPAREN) {
+		return nil
+	}
+
+	stmt.Parameters = parser.parse_function_parameters()
+
+	// Expect ::
+	if !parser.expect_peek(lexer.DOUBLE_COLON) {
+		return nil
+	}
+
+	// Parse component body (statements + UI tree)
+	stmt.Body = parser.parse_component_body()
+
+	// parse_component_body leaves us at END token
+	return stmt
+}
+
+// parse_component_body parses component body (var declarations + UI tree)
+func (parser *Parser) parse_component_body() *ast.ComponentBody {
+	body := &ast.ComponentBody{}
+	body.Statements = []ast.Statement{}
+
+	parser.next_token()
+
+	// Parse statements (var, const, assignments) until we hit a UI element or END
+	for parser.current_token.Type != lexer.END && parser.current_token.Type != lexer.EOF {
+		// Check if this is a statement or a UI element
+		if parser.is_statement_token(parser.current_token.Type) {
+			stmt := parser.parse_statement()
+			if stmt != nil {
+				body.Statements = append(body.Statements, stmt)
+			}
+			parser.next_token()
+		} else if parser.current_token.Type == lexer.IDENT {
+			// This could be the root UI element
+			body.Root = parser.parse_ui_element()
+			// parse_ui_element will advance to the closing brace
+			parser.next_token()
+			break
+		} else {
+			// Skip unknown tokens
+			parser.next_token()
+		}
+	}
+
+	return body
 }
 
 // parse_struct_statement parses struct declarations
@@ -1256,4 +1319,62 @@ func (parser *Parser) parse_anonymous_function() ast.Expression {
 	lit.Body = parser.parse_block_statement()
 
 	return lit
+}
+
+// parse_ui_element parses a UI element tree
+// Syntax: ElementName { property: value, property: value, ChildElement { ... } }
+func (parser *Parser) parse_ui_element() *ast.UIElement {
+	element := &ast.UIElement{}
+
+	// Current token should be the element type identifier (Window, VBox, etc.)
+	element.Type = &ast.Identifier{Value: parser.current_token.Literal}
+	element.Properties = make(map[string]ast.Expression)
+	element.Children = []*ast.UIElement{}
+
+	// Expect opening brace
+	if !parser.expect_peek(lexer.LBRACE) {
+		return nil
+	}
+
+	parser.next_token()
+
+	// Parse properties and children until closing brace
+	for parser.current_token.Type != lexer.RBRACE && parser.current_token.Type != lexer.EOF {
+		// Skip comments
+		if parser.current_token.Type == lexer.COMMENT {
+			parser.next_token()
+			continue
+		}
+
+		// Check if this is a property (identifier followed by colon) or a child element
+		if parser.current_token.Type == lexer.IDENT {
+			// Look ahead to determine if this is a property or child element
+			if parser.peek_token.Type == lexer.COLON {
+				// This is a property
+				prop_name := parser.current_token.Literal
+				parser.next_token() // move to colon
+				parser.next_token() // move to value
+
+				// Parse property value
+				prop_value := parser.parse_expression(LOWEST)
+				element.Properties[prop_name] = prop_value
+
+				// Skip optional comma
+				if parser.peek_token.Type == lexer.COMMA {
+					parser.next_token()
+				}
+			} else if parser.peek_token.Type == lexer.LBRACE {
+				// This is a child UI element
+				child := parser.parse_ui_element()
+				if child != nil {
+					element.Children = append(element.Children, child)
+				}
+			}
+		}
+
+		parser.next_token()
+	}
+
+	// Current token should be RBRACE
+	return element
 }
